@@ -1,0 +1,10 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "react_agent": "agent_framework.graphs.react_graph:build_react_graph",
+    "plan_execute_agent": "agent_framework.graphs.plan_execute_graph:build_plan_execute_graph",
+    "supervisor_agent": "agent_framework.graphs.supervisor_graph:build_supervisor_graph"
+  },
+  "env": ".env",
+  "python_version": "3.12"
+}

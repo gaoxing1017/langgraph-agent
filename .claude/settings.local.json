@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/gaoxing/Documents/myAPPs-SF/langgraph -type f -name *)",
+      "Bash(pip3 --version)",
+      "Bash(pip3 show:*)",
+      "Bash(pip3 list:*)",
+      "Bash(find /Users/gaoxing/Documents/myAPPs-SF/langgraph-main/examples -name *.ipynb -o -name *.py)",
+      "Bash(python3 -c \"import langgraph; print\\(dir\\(langgraph\\)\\)\")",
+      "Bash(python3:*)",
+      "Bash(chmod:*)",
+      "Bash(make dev:*)",
+      "Bash(uv sync:*)",
+      "Bash(grep -E \"^\\\\S.*: {0,4}\"\"\"\"\"\"[A-Z][a-z]+ [a-z]+ [a-z]+\")",
+      "WebSearch",
+      "Bash(uv add:*)",
+      "Bash(make studio:*)",
+      "Bash(lsof -ti:2024)",
+      "Bash(xargs kill:*)",
+      "Bash(git init:*)",
+      "Bash(git remote:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
