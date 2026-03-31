@@ -56,5 +56,13 @@ def get_llm(
             base_url=base_urls[_provider],
             api_key=api_keys[_provider],
         )
+    elif _provider == "siliconflow":
+        return ChatOpenAI(
+            model=_model,
+            temperature=_temperature,
+            max_tokens=_max_tokens,
+            base_url=settings.SILICONFLOW_BASE_URL,
+            api_key=settings.SILICONFLOW_API_KEY.get_secret_value() if settings.SILICONFLOW_API_KEY else None,
+        )
     else:
         raise ValueError(f"不支持的 LLM provider: {_provider}")

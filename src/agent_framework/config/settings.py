@@ -34,10 +34,12 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
 
     # 大语言模型配置
-    LLM_PROVIDER: Literal["openai", "anthropic", "deepseek", "zhipu"] = "openai"
+    LLM_PROVIDER: Literal["openai", "anthropic", "deepseek", "zhipu", "siliconflow"] = "openai"
     OPENAI_API_KEY: SecretStr | None = None
     ANTHROPIC_API_KEY: SecretStr | None = None
     DEEPSEEK_API_KEY: SecretStr | None = None
+    SILICONFLOW_API_KEY: SecretStr | None = None
+    SILICONFLOW_BASE_URL: str = "https://api.siliconflow.cn/v1"
     DEFAULT_MODEL: str = "gpt-4o"
     DEFAULT_TEMPERATURE: float = 0.0
     DEFAULT_MAX_TOKENS: int = 4096
