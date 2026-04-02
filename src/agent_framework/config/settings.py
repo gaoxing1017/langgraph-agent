@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # 应用基础配置
     ENVIRONMENT: Literal["development", "staging", "production"] = "development"
     LOG_LEVEL: str = "INFO"
+    LOG_DIR: str = "logs"
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
 
