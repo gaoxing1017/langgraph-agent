@@ -16,7 +16,7 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 
 from agent_framework.core.state import AgentState, InputState, OutputState
-from agent_framework.edges.routers import plan_execute_router
+from agent_framework.edges.routers import plan_execute_router, react_router
 from agent_framework.graphs.base_graph import BaseGraphBuilder
 from agent_framework.nodes.executor_node import executor_node
 from agent_framework.nodes.llm_node import llm_node
@@ -46,7 +46,7 @@ class PlanExecuteGraphBuilder(BaseGraphBuilder):
             plan_execute_router,
             {"execute": "llm", "end": END},
         )
-        graph.add_edge("llm", "tools")
+        graph.add_conditional_edges("llm", react_router, {"tools": "tools", "end": "execute_step"})
         graph.add_edge("tools", "execute_step")
 
         return graph

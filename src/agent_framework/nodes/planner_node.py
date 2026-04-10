@@ -16,7 +16,7 @@ from langchain_core.messages import SystemMessage
 from pydantic import BaseModel
 
 from agent_framework.config.llm_config import get_llm
-from agent_framework.config.settings import Settings
+from agent_framework.config.settings import Settings, get_settings
 from agent_framework.core.context import AgentContext
 from agent_framework.core.state import AgentState
 
@@ -34,7 +34,7 @@ class Plan(BaseModel):
 async def planner_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """从用户请求生成结构化执行计划。"""
     configurable = config.get("configurable", {})
-    settings: Settings = configurable.get("settings")
+    settings: Settings = configurable.get("settings") or get_settings()
     context: AgentContext = configurable.get("context", {})
 
     llm = get_llm(settings, provider=context.get("llm_provider"), model=context.get("model_name"))

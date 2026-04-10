@@ -15,7 +15,7 @@ import structlog
 from langchain_core.messages import AIMessage
 
 from agent_framework.config.llm_config import get_llm
-from agent_framework.config.settings import Settings
+from agent_framework.config.settings import Settings, get_settings
 from agent_framework.core.context import AgentContext
 from agent_framework.core.state import AgentState
 
@@ -25,7 +25,7 @@ logger = structlog.get_logger(__name__)
 async def llm_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """使用当前消息调用 LLM 并返回新的 AI 消息。"""
     configurable = config.get("configurable", {})
-    settings: Settings = configurable.get("settings")
+    settings: Settings = configurable.get("settings") or get_settings()
     context: AgentContext = configurable.get("context", {})
 
     llm = get_llm(

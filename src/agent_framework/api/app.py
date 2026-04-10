@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     request.app.state.* 以及 api/dependencies.py 中的依赖注入访问。
     """
     settings: Settings = app.state.settings
-    configure_logging(settings.LOG_LEVEL, json_logs=settings.is_production)
+    configure_logging(settings.LOG_LEVEL, json_logs=settings.is_production, log_dir=settings.LOG_DIR)
 
     # Nacos：拉取配置并注册服务
     nacos = NacosConfigManager(settings)

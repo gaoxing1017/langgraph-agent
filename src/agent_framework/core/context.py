@@ -17,7 +17,7 @@ class AgentContext(TypedDict, total=False):
     tenant_id: str
 
     # LLM 选择
-    llm_provider: Literal["openai", "anthropic", "deepseek", "zhipu"]
+    llm_provider: Literal["openai", "anthropic", "deepseek", "zhipu", "siliconflow"]
     model_name: str
     temperature: float
     max_tokens: int
