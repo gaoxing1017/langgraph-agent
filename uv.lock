@@ -87,6 +87,8 @@ rag = [
 [package.dev-dependencies]
 dev = [
     { name = "langgraph-cli", extra = ["inmem"] },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
 ]
 
 [package.metadata]
@@ -130,7 +132,11 @@ requires-dist = [
 provides-extras = ["postgres", "anthropic", "rag", "dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "langgraph-cli", extras = ["inmem"], specifier = ">=0.4.19" }]
+dev = [
+    { name = "langgraph-cli", extras = ["inmem"], specifier = ">=0.4.19" },
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "pytest-asyncio", specifier = ">=1.3.0" },
+]
 
 [[package]]
 name = "aiofiles"

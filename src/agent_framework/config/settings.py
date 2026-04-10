@@ -86,6 +86,32 @@ class Settings(BaseSettings):
     # 安全配置
     SECRET_KEY: str = "change-me-in-production"
 
+    # Dify 集成配置（物流子 Agent）
+    # DIFY_MOCK_MODE=True 时使用内置 mock 响应，无需真实 Dify 服务
+    DIFY_MOCK_MODE: bool = True
+    DIFY_ORDER_AGENT_URL: str = "http://localhost/v1"
+    DIFY_ORDER_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_TRACKING_AGENT_URL: str = "http://localhost/v1"
+    DIFY_TRACKING_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_INVENTORY_AGENT_URL: str = "http://localhost/v1"
+    DIFY_INVENTORY_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_TRANSPORT_AGENT_URL: str = "http://localhost/v1"
+    DIFY_TRANSPORT_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_WAREHOUSE_AGENT_URL: str = "http://localhost/v1"
+    DIFY_WAREHOUSE_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_SUPPLIER_AGENT_URL: str = "http://localhost/v1"
+    DIFY_SUPPLIER_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_CUSTOMS_AGENT_URL: str = "http://localhost/v1"
+    DIFY_CUSTOMS_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_ANALYTICS_AGENT_URL: str = "http://localhost/v1"
+    DIFY_ANALYTICS_AGENT_KEY: SecretStr = SecretStr("")
+
+    # 协调器配置
+    ORCHESTRATOR_MAX_ITERATIONS: int = 10
+    ORCHESTRATOR_TASK_TIMEOUT: int = 60        # 单个 Dify 任务超时（秒）
+    ORCHESTRATOR_KEEP_LAST_MESSAGES: int = 20  # 消息裁剪保留数（约 10 轮）
+    ORCHESTRATOR_TASK_HISTORY_SIZE: int = 20   # task_history 最大保留轮数
+
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
