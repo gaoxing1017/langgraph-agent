@@ -21,14 +21,12 @@ from agent_framework.core.state import AgentState
 
 
 class LogisticsAgentType(str, Enum):
-    ORDER = "order_agent"
-    INVENTORY = "inventory_agent"
-    TRANSPORT = "transport_agent"
-    WAREHOUSE = "warehouse_agent"
-    SUPPLIER = "supplier_agent"
-    CUSTOMS = "customs_agent"
-    TRACKING = "tracking_agent"
-    ANALYTICS = "analytics_agent"
+    PLACE_ORDER      = "place_order_agent"       # 下单 Agent
+    REVIEW_ORDER     = "review_order_agent"      # 审单 Agent
+    EXCEPTION_ORDER  = "exception_order_agent"   # 异常单处理 Agent
+    ORDER_QUERY      = "order_query_agent"       # 订单信息查询 Agent
+    CUSTOMER_QUERY   = "customer_query_agent"    # 客户信息查询 Agent
+    PRODUCT_QUERY    = "product_query_agent"     # 商品信息查询 Agent
 
 
 class TaskStatus(str, Enum):

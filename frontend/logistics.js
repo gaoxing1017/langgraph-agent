@@ -7,14 +7,12 @@ const $ = (sel, ctx = document) => ctx.querySelector(sel);
 
 // ── Agent meta ─────────────────────────────────────────────────────────────────
 const AGENT_META = {
-  order_agent:     { icon: '📋', label: '订单 Agent' },
-  inventory_agent: { icon: '📦', label: '库存 Agent' },
-  transport_agent: { icon: '🚛', label: '运输 Agent' },
-  warehouse_agent: { icon: '🏭', label: '仓储 Agent' },
-  supplier_agent:  { icon: '🤝', label: '供应商 Agent' },
-  customs_agent:   { icon: '🛃', label: '海关 Agent' },
-  tracking_agent:  { icon: '📍', label: '追踪 Agent' },
-  analytics_agent: { icon: '📊', label: '分析 Agent' },
+  place_order_agent:     { icon: '🛒', label: '下单 Agent' },
+  review_order_agent:    { icon: '✅', label: '审单 Agent' },
+  exception_order_agent: { icon: '⚠️', label: '异常单处理 Agent' },
+  order_query_agent:     { icon: '🔍', label: '订单查询 Agent' },
+  customer_query_agent:  { icon: '👤', label: '客户查询 Agent' },
+  product_query_agent:   { icon: '📦', label: '商品查询 Agent' },
 };
 
 const STATUS_LABEL = {

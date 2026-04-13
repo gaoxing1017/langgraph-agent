@@ -264,14 +264,6 @@ html, body {
   width: 100%;
 }
 
-.hero-sub {
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-bottom: 16px;
-  line-height: 1.6;
-  max-width: 500px;
-}
-
 .hero-title {
   font-size: 32px;
   font-weight: 700;
@@ -279,6 +271,45 @@ html, body {
   letter-spacing: -0.02em;
   margin-bottom: 32px;
   line-height: 1.2;
+}
+
+/* Hero agent cards */
+.hero-agents {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+  max-width: 660px;
+  margin-bottom: 28px;
+}
+
+.hero-agent-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.hero-agent-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+}
+
+.hero-agent-icon { font-size: 18px; }
+
+.hero-agent-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hero-agent-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 /* Hero input */

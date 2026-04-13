@@ -26,28 +26,34 @@ def build_dify_registry(settings: Settings) -> dict[LogisticsAgentType, DifyClie
         )
 
     return {
-        LogisticsAgentType.ORDER: _client(
-            settings.DIFY_ORDER_AGENT_URL, settings.DIFY_ORDER_AGENT_KEY, LogisticsAgentType.ORDER
+        LogisticsAgentType.PLACE_ORDER: _client(
+            settings.DIFY_PLACE_ORDER_AGENT_URL,
+            settings.DIFY_PLACE_ORDER_AGENT_KEY,
+            LogisticsAgentType.PLACE_ORDER,
         ),
-        LogisticsAgentType.TRACKING: _client(
-            settings.DIFY_TRACKING_AGENT_URL, settings.DIFY_TRACKING_AGENT_KEY, LogisticsAgentType.TRACKING
+        LogisticsAgentType.REVIEW_ORDER: _client(
+            settings.DIFY_REVIEW_ORDER_AGENT_URL,
+            settings.DIFY_REVIEW_ORDER_AGENT_KEY,
+            LogisticsAgentType.REVIEW_ORDER,
         ),
-        LogisticsAgentType.INVENTORY: _client(
-            settings.DIFY_INVENTORY_AGENT_URL, settings.DIFY_INVENTORY_AGENT_KEY, LogisticsAgentType.INVENTORY
+        LogisticsAgentType.EXCEPTION_ORDER: _client(
+            settings.DIFY_EXCEPTION_ORDER_AGENT_URL,
+            settings.DIFY_EXCEPTION_ORDER_AGENT_KEY,
+            LogisticsAgentType.EXCEPTION_ORDER,
         ),
-        LogisticsAgentType.TRANSPORT: _client(
-            settings.DIFY_TRANSPORT_AGENT_URL, settings.DIFY_TRANSPORT_AGENT_KEY, LogisticsAgentType.TRANSPORT
+        LogisticsAgentType.ORDER_QUERY: _client(
+            settings.DIFY_ORDER_QUERY_AGENT_URL,
+            settings.DIFY_ORDER_QUERY_AGENT_KEY,
+            LogisticsAgentType.ORDER_QUERY,
         ),
-        LogisticsAgentType.WAREHOUSE: _client(
-            settings.DIFY_WAREHOUSE_AGENT_URL, settings.DIFY_WAREHOUSE_AGENT_KEY, LogisticsAgentType.WAREHOUSE
+        LogisticsAgentType.CUSTOMER_QUERY: _client(
+            settings.DIFY_CUSTOMER_QUERY_AGENT_URL,
+            settings.DIFY_CUSTOMER_QUERY_AGENT_KEY,
+            LogisticsAgentType.CUSTOMER_QUERY,
         ),
-        LogisticsAgentType.SUPPLIER: _client(
-            settings.DIFY_SUPPLIER_AGENT_URL, settings.DIFY_SUPPLIER_AGENT_KEY, LogisticsAgentType.SUPPLIER
-        ),
-        LogisticsAgentType.CUSTOMS: _client(
-            settings.DIFY_CUSTOMS_AGENT_URL, settings.DIFY_CUSTOMS_AGENT_KEY, LogisticsAgentType.CUSTOMS
-        ),
-        LogisticsAgentType.ANALYTICS: _client(
-            settings.DIFY_ANALYTICS_AGENT_URL, settings.DIFY_ANALYTICS_AGENT_KEY, LogisticsAgentType.ANALYTICS
+        LogisticsAgentType.PRODUCT_QUERY: _client(
+            settings.DIFY_PRODUCT_QUERY_AGENT_URL,
+            settings.DIFY_PRODUCT_QUERY_AGENT_KEY,
+            LogisticsAgentType.PRODUCT_QUERY,
         ),
     }

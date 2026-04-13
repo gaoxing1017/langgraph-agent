@@ -60,26 +60,25 @@
 
         <!-- Welcome / Hero (visible until first message) -->
         <div class="hero" id="hero">
-          <p class="hero-sub">我已接入 SF 企业供应链智能体 多一入口，上文文要遵行：仓储、运输和相应智能统生成执行建议</p>
-          <h1 class="hero-title">供应链智能体正在待命</h1>
+          <h1 class="hero-title">订单智能体正在待命</h1>
 
           <div class="hero-input-wrap">
             <textarea
               id="user-input-hero"
               class="hero-input"
-              placeholder="例如：汇总今日订单风险、运动仓储、运输和相应智能统生成执行建议"
+              placeholder="例如：帮我查询订单 SO-2024-20480 的物流进度"
               rows="1"
             ></textarea>
             <button class="btn-hero-send" id="btn-hero-send">发送</button>
           </div>
 
           <div class="quick-chips">
-            <button class="chip" data-prompt="查询订单 SO-2024-001 的状态">📋 查询订单状态</button>
-            <button class="chip" data-prompt="追踪货件 SF-789456123 的物流轨迹">📍 追踪货件</button>
-            <button class="chip" data-prompt="查看北京仓库当前库存水平">📦 查询库存</button>
-            <button class="chip" data-prompt="为订单 SO-2024-002 规划最优运输路线">🚛 规划运输路线</button>
-            <button class="chip" data-prompt="分析本月物流成本和准时交货率">📊 物流数据分析</button>
-            <button class="chip" data-prompt="产品 SKU-888 的海关申报和报关手续">🛃 海关报关咨询</button>
+            <button class="chip" data-prompt="帮我下一个订单：SKU-1001 笔记本电脑 × 50台，收货方上海顺丰科技，期望2月5日到货">🛒 创建新订单</button>
+            <button class="chip" data-prompt="审核订单 SO-2024-20480，检查客户信用和库存">✅ 审核订单</button>
+            <button class="chip" data-prompt="查询订单 SO-2024-20480 的当前状态和物流进度">🔍 查询订单状态</button>
+            <button class="chip" data-prompt="订单 SO-2024-20391 收货时发现货物破损3件，请处理异常">⚠️ 处理异常订单</button>
+            <button class="chip" data-prompt="查询客户 CUS-10086 的信用等级和授信额度">👤 查询客户信息</button>
+            <button class="chip" data-prompt="查询商品 SKU-1001 的规格、价格和当前库存">📦 查询商品信息</button>
           </div>
         </div>
         <!-- end hero -->
