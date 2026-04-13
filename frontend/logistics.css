@@ -611,3 +611,164 @@ html, body {
   margin-bottom: 2px;
 }
 .intent-tag strong { color: var(--accent); }
+
+/* ── Process bubble (streaming thinking steps) ─────── */
+.process-msg { align-items: flex-start; }
+
+.process-bubble {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  border-bottom-left-radius: 2px;
+  overflow: hidden;
+  max-width: 520px;
+  font-size: 13px;
+}
+
+.process-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  transition: background 0.15s;
+}
+.process-header:hover { background: var(--border); }
+
+.process-title {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.process-toggle {
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+.process-bubble.collapsed .process-toggle { transform: rotate(-90deg); }
+.process-bubble.collapsed .process-body  { display: none; }
+
+/* Spinning circle indicator */
+.process-spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid var(--border-deep);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.process-done-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  background: var(--success);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Body: intent line + task rows */
+.process-body {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.process-intent {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  background: #eff6ff;
+  border-radius: 5px;
+  border: 1px solid #bfdbfe;
+}
+
+.process-task-row {
+  display: grid;
+  grid-template-columns: 18px auto 1fr;
+  grid-template-areas:
+    "status agent instruction"
+    ".      result result"
+    ".      error  error";
+  column-gap: 8px;
+  row-gap: 3px;
+  align-items: start;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-deep);
+}
+.process-task-row.status-completed { border-left-color: var(--success); }
+.process-task-row.status-failed    { border-left-color: var(--danger); }
+.process-task-row.status-running   { border-left-color: var(--accent); }
+.process-task-row.status-pending   { border-left-color: var(--border-deep); }
+
+.proc-status {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  padding-top: 1px;
+}
+
+/* Small inline spinner for pending/running tasks */
+.proc-spin {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid var(--border-deep);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.proc-agent {
+  grid-area: agent;
+  font-weight: 600;
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.proc-instruction {
+  grid-area: instruction;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.proc-result {
+  grid-area: result;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 7px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.proc-error {
+  grid-area: error;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--danger);
+  font-style: italic;
+}

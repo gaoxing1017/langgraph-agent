@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any, AsyncIterator
 
@@ -80,32 +81,81 @@ async def _run_logistics(body: RunRequest, request: Request, run_id: str, thread
         return RunResponse(run_id=run_id, thread_id=thread_id, status="error", errors=[str(exc)])
 
 
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _task_dict(t: Any) -> dict:
+    d = t if isinstance(t, dict) else t.model_dump()
+    return {
+        "task_id":    str(d.get("task_id", "")),
+        "agent_type": str(d.get("agent_type", "")),
+        "instruction": d.get("instruction", ""),
+        "status":     str(d.get("status", "")),
+        "result":     d.get("result"),
+        "error":      d.get("error"),
+    }
+
+
 async def _stream_logistics(body: RunRequest, request: Request, thread_id: str) -> AsyncIterator[str]:
-    """流式执行 logistics orchestrator，仅推送 LLM token。"""
+    """流式执行 logistics orchestrator，推送结构化过程事件 + 最终 token。
+
+    SSE 事件类型：
+      {"type":"plan",        "intent":"...", "tasks":[...]}   ← 规划完成
+      {"type":"task_update", "tasks":[...]}                   ← 单个任务状态变更
+      {"type":"token",       "content":"..."}                 ← 最终回答 token
+      {"type":"done"}                                         ← 流结束
+      {"type":"error",       "message":"..."}                 ← 错误
+    """
     agent = getattr(request.app.state, "logistics_agent", None)
     if agent is None:
-        yield "data: [ERROR] Logistics agent 未初始化\n\n"
+        yield _sse({"type": "error", "message": "Logistics agent 未初始化"})
         return
 
-    user_message = next(
-        (m.content for m in body.messages if m.role == "user"), ""
-    )
-    async for event in agent.stream(
-        user_message=user_message,
-        thread_id=thread_id,
-        user_id=body.user_id,
-        tenant_id=body.tenant_id,
-    ):
-        if event["event"] == "on_chat_model_stream":
-            # 只推送 result_aggregator 节点的 token，过滤 analyze_and_plan 的 JSON 输出
-            node = event.get("metadata", {}).get("langgraph_node", "")
-            if node != "result_aggregator":
-                continue
-            chunk = event["data"].get("chunk", "")
-            content = getattr(chunk, "content", "")
-            if content:
-                yield f"data: {content}\n\n"
-    yield "data: [DONE]\n\n"
+    user_message = next((m.content for m in body.messages if m.role == "user"), "")
+
+    try:
+        async for event in agent.stream(
+            user_message=user_message,
+            thread_id=thread_id,
+            user_id=body.user_id,
+            tenant_id=body.tenant_id,
+        ):
+            etype = event["event"]
+            node  = event.get("metadata", {}).get("langgraph_node", "")
+
+            event_name = event.get("name", "")
+            logger.debug("stream_event", etype=etype, node=node, name=event_name)
+
+            # ── 规划完成：推送意图 + 全部子任务（pending 状态）──────────────
+            # 只处理节点本身的 on_chain_end（name == 注册名），忽略内部子链事件
+            if etype == "on_chain_end" and node == "analyze_and_plan" and event_name == "analyze_and_plan":
+                out = event["data"].get("output", {})
+                if isinstance(out, dict):
+                    tasks = [_task_dict(t) for t in out.get("sub_tasks", [])]
+                    if tasks:
+                        yield _sse({"type": "plan", "intent": out.get("intent", ""), "tasks": tasks})
+
+            # ── 单次 dispatch 完成：推送该任务最新状态 ─────────────────────
+            elif etype == "on_chain_end" and node == "dispatch" and event_name == "dispatch":
+                out = event["data"].get("output", {})
+                if isinstance(out, dict):
+                    tasks = [_task_dict(t) for t in out.get("sub_tasks", [])]
+                    if tasks:
+                        yield _sse({"type": "task_update", "tasks": tasks})
+
+            # ── result_aggregator LLM token ────────────────────────────────
+            elif etype == "on_chat_model_stream" and node == "result_aggregator":
+                chunk   = event["data"].get("chunk", "")
+                content = getattr(chunk, "content", "")
+                if content:
+                    yield _sse({"type": "token", "content": content})
+
+        yield _sse({"type": "done"})
+
+    except Exception as exc:
+        logger.error("stream_logistics_error", error=str(exc), exc_info=True)
+        yield _sse({"type": "error", "message": f"执行失败: {exc}"})
 
 
 # ── ReAct (generic) handler ────────────────────────────────────────────────────

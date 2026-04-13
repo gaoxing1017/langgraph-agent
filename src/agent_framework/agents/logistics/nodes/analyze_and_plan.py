@@ -51,9 +51,8 @@ ANALYZE_AND_PLAN_SYSTEM_PROMPT = """你是一个企业级供应链智能协调�
 - 用户要查订单"状态"、"进度"、"物流"、"追踪" → order_query_agent
 - 用户要查"客户"、"买家"、"信用"、"授信"、"联系方式" → customer_query_agent
 - 用户要查"商品"、"SKU"、"产品"、"规格"、"价格"、"库存" → product_query_agent
-- 下单前如需确认客户信用可先调用 customer_query_agent，再调用 place_order_agent
-- 下单前如需确认商品价格或库存可先调用 product_query_agent
-- 请根据业务逻辑判断是否需要多步骤任务
+- 下单前如需确认客户信用可先调用 customer_query_agent，再调用 place_order_agent，请根据业务逻辑判断是否需要多步骤任务
+- 下单前如需确认商品价格或库存可先调用 product_query_agent，再调用 place_order_agent，请根据业务逻辑判断是否需要多步骤任务
 
 规则：
 - 按实际需要选择最少的 agent 类型

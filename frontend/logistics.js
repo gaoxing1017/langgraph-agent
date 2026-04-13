@@ -370,8 +370,16 @@ async function sendSync(payload) {
 }
 
 async function sendStreaming(payload) {
-  const bubble = appendStreamingBubble();
-  taskPanelBody.innerHTML = '<div class="task-placeholder">Agent 处理中…</div>';
+  // Process bubble (thinking steps) + answer bubble rendered separately
+  const processBubble = appendProcessBubble();
+  let answerBubble = null;
+  let fullAnswer = '';
+  let streamFinished = false;
+
+  // Task panel: live state map keyed by task_id
+  const liveTaskMap = {};
+  taskPanelBody.innerHTML = '';
+  turnBadge.textContent = '';
 
   const res = await fetch(`${apiBase()}/api/v1/runs`, {
     method: 'POST',
@@ -381,14 +389,14 @@ async function sendStreaming(payload) {
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    bubble.closest('.msg').remove();
+    processBubble.closest('.msg').remove();
     appendError(`服务错误 (${res.status}): ${data.detail || ''}`);
     clearTaskPanel(); return;
   }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '', fullText = '';
+  let buffer = '';
 
   while (true) {
     const { done, value } = await reader.read();
@@ -396,19 +404,199 @@ async function sendStreaming(payload) {
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split('\n');
     buffer = lines.pop();
+
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue;
-      const content = line.slice(6);
-      if (content === '[DONE]') break;
-      fullText += content;
-      bubble.textContent = fullText;
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      let evt;
+      try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+      switch (evt.type) {
+
+        // ── 规划完成：渲染意图 + 待执行任务列表 ──────────────────────
+        case 'plan': {
+          (evt.tasks || []).forEach(t => { liveTaskMap[t.task_id] = t; });
+          renderProcessBubble(processBubble, evt.intent, liveTaskMap);
+          renderLiveTaskPanel(liveTaskMap);
+          break;
+        }
+
+        // ── 单任务状态变更 ────────────────────────────────────────────
+        case 'task_update': {
+          (evt.tasks || []).forEach(t => { liveTaskMap[t.task_id] = t; });
+          renderProcessBubble(processBubble, null, liveTaskMap);
+          renderLiveTaskPanel(liveTaskMap);
+          break;
+        }
+
+        // ── 最终回答 token ────────────────────────────────────────────
+        case 'token': {
+          if (!answerBubble) {
+            answerBubble = appendAnswerBubble();
+          }
+          fullAnswer += evt.content;
+          answerBubble.textContent = fullAnswer;
+          messagesEl.scrollTop = messagesEl.scrollHeight;
+          break;
+        }
+
+        case 'done': {
+          streamFinished = true;
+          finalizeProcessBubble(processBubble, liveTaskMap);
+          if (answerBubble) answerBubble.classList.remove('streaming');
+          if (fullAnswer)   pushHistory(activeThreadId, 'assistant', fullAnswer);
+          break;
+        }
+
+        case 'error': {
+          streamFinished = true;
+          finalizeProcessBubbleError(processBubble, evt.message || '未知错误');
+          if (answerBubble) answerBubble.classList.remove('streaming');
+          appendError(evt.message || '未知错误');
+          clearTaskPanel();
+          break;
+        }
+      }
     }
   }
 
-  bubble.classList.remove('streaming');
-  if (fullText) pushHistory(activeThreadId, 'assistant', fullText);
-  taskPanelBody.innerHTML = '<div class="task-placeholder">流式模式下不返回子任务详情。<br/>关闭"流式"开关可查看执行明细。</div>';
+  // Stream closed without explicit done/error (e.g. server exception)
+  if (!streamFinished) {
+    finalizeProcessBubbleError(processBubble, '连接意外断开，请重试');
+    if (!fullAnswer) appendError('服务未返回有效回复，请检查后端日志');
+  }
+  if (answerBubble) answerBubble.classList.remove('streaming');
+}
+
+// ── Process bubble helpers ─────────────────────────────────────────────────────
+function appendProcessBubble() {
+  const area = ensureChatArea();
+  const div = document.createElement('div');
+  div.className = 'msg assistant process-msg';
+  div.innerHTML = `
+    <div class="avatar">◈</div>
+    <div class="process-bubble">
+      <div class="process-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="process-spinner"></span>
+        <span class="process-title">思考中…</span>
+        <span class="process-toggle">▾</span>
+      </div>
+      <div class="process-body"></div>
+    </div>
+  `;
+  area.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return div.querySelector('.process-bubble');
+}
+
+function appendAnswerBubble() {
+  const area = getChatArea();
+  const div = document.createElement('div');
+  div.className = 'msg assistant';
+  div.innerHTML = `<div class="avatar">◈</div><div class="bubble streaming"></div>`;
+  area.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return div.querySelector('.bubble');
+}
+
+function renderProcessBubble(bubble, intent, taskMap) {
+  const titleEl  = bubble.querySelector('.process-title');
+  const spinnerEl = bubble.querySelector('.process-spinner, .process-done-icon');
+  const body      = bubble.querySelector('.process-body');
+
+  const tasks   = Object.values(taskMap);
+  const allDone = tasks.length > 0 && tasks.every(t => t.status === 'completed' || t.status === 'failed');
+
+  // Update spinner & title in the header
+  if (allDone && spinnerEl && spinnerEl.classList.contains('process-spinner')) {
+    spinnerEl.className = 'process-done-icon';
+    spinnerEl.textContent = '✓';
+  }
+  if (titleEl) {
+    if (allDone) {
+      titleEl.textContent = intent ? `已完成：${intent}` : '执行完成';
+    } else if (intent) {
+      titleEl.textContent = `意图：${intent}`;
+    }
+  }
+
+  // Render task rows
+  body.innerHTML = '';
+  if (intent && !allDone) {
+    const intentRow = document.createElement('div');
+    intentRow.className = 'process-intent';
+    intentRow.textContent = `📋 ${intent}`;
+    body.appendChild(intentRow);
+  }
+
+  tasks.forEach(t => {
+    const meta = AGENT_META[t.agent_type] || { icon: '🤖', label: t.agent_type };
+    const row  = document.createElement('div');
+    row.className = `process-task-row status-${t.status}`;
+
+    const statusIcon = {
+      pending:   '<span class="proc-spin"></span>',
+      running:   '<span class="proc-spin"></span>',
+      completed: '✅',
+      failed:    '❌',
+    }[t.status] || '⏳';
+
+    row.innerHTML = `
+      <span class="proc-status">${statusIcon}</span>
+      <span class="proc-agent">${meta.icon} ${meta.label}</span>
+      <span class="proc-instruction">${escapeHtml(t.instruction)}</span>
+      ${t.result && t.status === 'completed'
+        ? `<div class="proc-result">${escapeHtml(t.result.slice(0, 120))}${t.result.length > 120 ? '…' : ''}</div>`
+        : ''}
+      ${t.error ? `<div class="proc-error">${escapeHtml(t.error)}</div>` : ''}
+    `;
+    body.appendChild(row);
+  });
+
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function finalizeProcessBubble(bubble, taskMap) {
+  // Only act if spinner is still spinning (not already finalized by renderProcessBubble)
+  const spinner = bubble.querySelector('.process-spinner');
+  const title   = bubble.querySelector('.process-title');
+  if (spinner) {
+    spinner.className = 'process-done-icon';
+    spinner.textContent = '✓';
+    if (title && (title.textContent === '思考中…' || title.textContent.startsWith('意图：'))) {
+      const intent = title.textContent.replace(/^意图：/, '');
+      title.textContent = Object.keys(taskMap).length
+        ? `已完成：${intent}`
+        : '执行完成';
+    }
+  }
+}
+
+function finalizeProcessBubbleError(bubble, message) {
+  const spinner = bubble.querySelector('.process-spinner, .process-done-icon');
+  const title   = bubble.querySelector('.process-title');
+  if (spinner) { spinner.className = 'process-done-icon'; spinner.textContent = '✕'; spinner.style.color = 'var(--danger)'; }
+  if (title)   { title.textContent = `出错：${message.slice(0, 60)}`; title.style.color = 'var(--danger)'; }
+}
+
+function renderLiveTaskPanel(taskMap) {
+  taskPanelBody.innerHTML = '';
+  const tasks = Object.values(taskMap);
+  tasks.forEach(t => {
+    const meta = AGENT_META[t.agent_type] || { icon: '🤖', label: t.agent_type };
+    const card = document.createElement('div');
+    card.className = `subtask-card status-${t.status}`;
+    card.innerHTML = `
+      <div class="subtask-agent">
+        <span class="subtask-agent-icon">${meta.icon}</span>
+        <span class="subtask-agent-name">${meta.label}</span>
+        <span class="subtask-status-dot">${STATUS_LABEL[t.status] || t.status}</span>
+      </div>
+      <div class="subtask-instruction">${escapeHtml(t.instruction)}</div>
+      ${t.result ? `<div class="subtask-result">${escapeHtml(t.result)}</div>` : ''}
+      ${t.error  ? `<div class="subtask-error">错误：${escapeHtml(t.error)}</div>` : ''}
+    `;
+    taskPanelBody.appendChild(card);
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
