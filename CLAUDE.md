@@ -22,7 +22,7 @@ Production-ready LangGraph AI Agent framework with FastAPI, PostgreSQL, Langfuse
 3. Tool errors return ToolMessage (not exceptions) so LLM can retry
 4. AgentContext is NOT persisted in checkpoints - use for per-invocation config only
 5. Use Command(goto=...) for multi-agent routing instead of enumerating conditional edges
-6. 任务完成后生成任务总结文档叨叨 doc 目录下
+6. 任务完成后生成任务总结文档到 doc 目录下
 
 ## Package Management
 

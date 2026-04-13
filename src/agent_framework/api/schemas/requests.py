@@ -13,7 +13,7 @@ class RunRequest(BaseModel):
     thread_id: str = Field(default="", description="Conversation thread ID. Auto-generated if empty.")
     messages: list[MessageInput]
     stream: bool = False
-    agent_type: Literal["react", "plan_execute", "supervisor"] = "react"
+    agent_type: Literal["react", "plan_execute", "supervisor", "logistics"] = "react"
     user_id: str = "anonymous"
     tenant_id: str = "default"
     llm_provider: str | None = None

@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from langgraph.graph import END, START, StateGraph
 
-from agent_framework.core.state import InputState, OutputState
+from agent_framework.core.state import InputState
 from agent_framework.graphs.base_graph import BaseGraphBuilder
 from agent_framework.agents.logistics.nodes.analyze_and_plan import analyze_and_plan_node
 from agent_framework.agents.logistics.nodes.dispatch import dispatch_node, dispatch_router
@@ -32,12 +32,12 @@ from agent_framework.agents.logistics.nodes.memory import memory_load_node
 from agent_framework.agents.logistics.nodes.result_aggregator import result_aggregator_node
 from agent_framework.agents.logistics.nodes.turn_finalize import turn_finalize_node
 from agent_framework.agents.logistics.nodes.turn_init import turn_init_node
-from agent_framework.agents.logistics.state import OrchestratorState
+from agent_framework.agents.logistics.state import LogisticsOutputState, OrchestratorState
 
 
 class LogisticsOrchestratorGraphBuilder(BaseGraphBuilder):
     def build(self) -> StateGraph:
-        graph = StateGraph(OrchestratorState, input_schema=InputState, output_schema=OutputState)
+        graph = StateGraph(OrchestratorState, input_schema=InputState, output_schema=LogisticsOutputState)
 
         graph.add_node("turn_init", turn_init_node)
         graph.add_node("memory_load", memory_load_node)

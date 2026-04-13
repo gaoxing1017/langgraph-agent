@@ -20,6 +20,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from agent_framework.agents.logistics.agent import LogisticsOrchestratorAgent
 from agent_framework.api.middleware import LoggingMiddleware, RequestIDMiddleware
 from agent_framework.api.routes import admin, health, runs, threads
 from agent_framework.api.routes import a2a as a2a_routes
@@ -57,6 +58,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # 将图作为单例编译一次
     graph = build_react_graph().compile(checkpointer=checkpointer, store=store)
     app.state.graph = graph
+
+    # 物流协调器 Agent
+    logistics_agent = LogisticsOrchestratorAgent(settings)
+    logistics_agent.build_graph(checkpointer=checkpointer, store=store)
+    app.state.logistics_agent = logistics_agent
 
     logger.info("应用启动完成", environment=settings.ENVIRONMENT)
     yield

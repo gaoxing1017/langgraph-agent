@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import operator
 from enum import Enum
-from typing import Annotated, Any
+from typing import Annotated, Any, TypedDict
 
+from langchain_core.messages import AnyMessage
+from langgraph.graph.message import add_messages
 from pydantic import BaseModel
 
 from agent_framework.core.state import AgentState
@@ -119,3 +121,17 @@ class OrchestratorState(AgentState):
     # 编排控制
     orchestrator_iteration: int
     escalation_reason: str | None
+
+
+# ── output schema ──────────────────────────────────────────────────────────────
+
+class LogisticsOutputState(TypedDict, total=False):
+    """ainvoke / 前端可见的输出字段子集。"""
+    messages: Annotated[list[AnyMessage], add_messages]
+    final_answer: str | None
+    errors: Annotated[list[str], operator.add]
+    sub_tasks: Annotated[list[SubTask], _merge_sub_tasks]
+    turn_count: int
+    intent: str | None
+    active_orders: list[str]
+    active_shipments: list[str]

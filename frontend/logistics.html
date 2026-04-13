@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>供应链智能体</title>
+  <link rel="stylesheet" href="logistics.css" />
+</head>
+<body>
+  <!-- ── Top Navigation ───────────────────────────────── -->
+  <nav class="topnav">
+    <div class="nav-brand">
+      <span class="brand-icon">◈</span>
+      <span class="brand-text">供应链智能体</span>
+    </div>
+
+    <div class="nav-right">
+      <div id="health-dot" class="health-dot" title="服务状态"></div>
+      <button class="btn-new-thread" id="btn-new-thread">+ 新建对话</button>
+    </div>
+  </nav>
+
+  <!-- ── Settings button (fixed top-right) ────────────── -->
+  <button class="btn-settings" id="btn-settings-toggle" title="设置">⚙</button>
+
+  <!-- ── Settings drawer (hidden by default) ────────── -->
+  <div class="settings-drawer" id="settings-drawer">
+    <div class="settings-row">
+      <label>记忆</label>
+      <label class="toggle">
+        <input type="checkbox" id="memory-enabled" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <label>流式</label>
+      <label class="toggle">
+        <input type="checkbox" id="stream-enabled" />
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="settings-row col">
+      <label>API 地址</label>
+      <input type="text" id="api-base" value="http://localhost:8000" />
+    </div>
+  </div>
+
+  <!-- ── Main Layout ─────────────────────────────────── -->
+  <div class="main-layout">
+
+    <!-- Left sidebar: thread list -->
+    <aside class="sidebar">
+      <div class="sidebar-threads-label">对话历史</div>
+      <ul class="sidebar-thread-list" id="sidebar-thread-list"></ul>
+    </aside>
+
+    <!-- Chat column -->
+    <div class="chat-column">
+      <div class="messages" id="messages">
+
+        <!-- Welcome / Hero (visible until first message) -->
+        <div class="hero" id="hero">
+          <p class="hero-sub">我已接入 SF 企业供应链智能体 多一入口，上文文要遵行：仓储、运输和相应智能统生成执行建议</p>
+          <h1 class="hero-title">供应链智能体正在待命</h1>
+
+          <div class="hero-input-wrap">
+            <textarea
+              id="user-input-hero"
+              class="hero-input"
+              placeholder="例如：汇总今日订单风险、运动仓储、运输和相应智能统生成执行建议"
+              rows="1"
+            ></textarea>
+            <button class="btn-hero-send" id="btn-hero-send">发送</button>
+          </div>
+
+          <div class="quick-chips">
+            <button class="chip" data-prompt="查询订单 SO-2024-001 的状态">📋 查询订单状态</button>
+            <button class="chip" data-prompt="追踪货件 SF-789456123 的物流轨迹">📍 追踪货件</button>
+            <button class="chip" data-prompt="查看北京仓库当前库存水平">📦 查询库存</button>
+            <button class="chip" data-prompt="为订单 SO-2024-002 规划最优运输路线">🚛 规划运输路线</button>
+            <button class="chip" data-prompt="分析本月物流成本和准时交货率">📊 物流数据分析</button>
+            <button class="chip" data-prompt="产品 SKU-888 的海关申报和报关手续">🛃 海关报关咨询</button>
+          </div>
+        </div>
+        <!-- end hero -->
+
+      </div><!-- end messages -->
+
+      <!-- Bottom input bar (shown after first message) -->
+      <div class="input-bar hidden" id="input-bar">
+        <div class="input-bar-inner">
+          <span id="active-entities" class="entity-tags"></span>
+          <textarea
+            id="user-input"
+            placeholder="继续提问，Enter 发送，Shift+Enter 换行…"
+            rows="1"
+          ></textarea>
+          <button class="btn-send" id="btn-send">发送</button>
+        </div>
+      </div>
+    </div><!-- end chat-column -->
+
+    <!-- Task panel -->
+    <aside class="task-panel" id="task-panel">
+      <div class="task-panel-header">
+        <span>执行详情</span>
+        <span class="turn-badge" id="turn-badge"></span>
+      </div>
+      <div class="task-panel-body" id="task-panel-body">
+        <div class="task-placeholder">发送消息后，子任务执行情况将在此显示。</div>
+      </div>
+    </aside>
+
+  </div><!-- end main-layout -->
+
+  <!-- Delete thread confirm button (hidden, triggered by JS) -->
+  <button id="btn-delete-thread" style="display:none"></button>
+
+  <script src="logistics.js"></script>
+</body>
+</html>
