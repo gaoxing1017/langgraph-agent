@@ -17,6 +17,11 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/runs", tags=["runs"])
 
 
+def _enum_val(v: Any) -> str:
+    """提取枚举的 .value，避免 Python 3.11+ str(Enum) 返回 'ClassName.MEMBER'。"""
+    return v.value if hasattr(v, "value") else str(v)
+
+
 def _build_context(body: RunRequest) -> AgentContext:
     """将 API 请求字段映射为图调用所需的 AgentContext。"""
     return AgentContext(
@@ -38,9 +43,9 @@ def _extract_sub_tasks(result: dict[str, Any]) -> list[SubTaskOutput]:
         data = t if isinstance(t, dict) else t.model_dump()
         out.append(SubTaskOutput(
             task_id=data.get("task_id", ""),
-            agent_type=data.get("agent_type", ""),
+            agent_type=_enum_val(data.get("agent_type", "")),
             instruction=data.get("instruction", ""),
-            status=data.get("status", ""),
+            status=_enum_val(data.get("status", "")),
             result=data.get("result"),
             error=data.get("error"),
         ))
@@ -65,7 +70,20 @@ async def _run_logistics(body: RunRequest, request: Request, run_id: str, thread
             user_id=body.user_id,
             tenant_id=body.tenant_id,
             memory_enabled=body.memory_enabled,
+            resume=body.resume,
         )
+
+        # 图被 interrupt() 挂起（HITL validate_tasks）
+        if "__interrupt__" in result:
+            iv = result["__interrupt__"]
+            return RunResponse(
+                run_id=run_id,
+                thread_id=thread_id,
+                status="interrupted",
+                final_answer=iv.get("question", "需要补充信息"),
+                errors=[],
+            )
+
         return RunResponse(
             run_id=run_id,
             thread_id=thread_id,
@@ -88,12 +106,12 @@ def _sse(payload: dict) -> str:
 def _task_dict(t: Any) -> dict:
     d = t if isinstance(t, dict) else t.model_dump()
     return {
-        "task_id":    str(d.get("task_id", "")),
-        "agent_type": str(d.get("agent_type", "")),
+        "task_id":     str(d.get("task_id", "")),
+        "agent_type":  _enum_val(d.get("agent_type", "")),
         "instruction": d.get("instruction", ""),
-        "status":     str(d.get("status", "")),
-        "result":     d.get("result"),
-        "error":      d.get("error"),
+        "status":      _enum_val(d.get("status", "")),
+        "result":      d.get("result"),
+        "error":       d.get("error"),
     }
 
 
@@ -105,6 +123,7 @@ async def _stream_logistics(body: RunRequest, request: Request, thread_id: str) 
       {"type":"task_update", "tasks":[...]}                   ← 单个任务状态变更
       {"type":"token",       "content":"..."}                 ← 最终回答 token
       {"type":"done"}                                         ← 流结束
+      {"type":"interrupt",   "question":"...", "gaps":[...]}  ← HITL 缺少信息
       {"type":"error",       "message":"..."}                 ← 错误
     """
     agent = getattr(request.app.state, "logistics_agent", None)
@@ -120,10 +139,21 @@ async def _stream_logistics(body: RunRequest, request: Request, thread_id: str) 
             thread_id=thread_id,
             user_id=body.user_id,
             tenant_id=body.tenant_id,
+            resume=body.resume,
         ):
             etype = event["event"]
-            node  = event.get("metadata", {}).get("langgraph_node", "")
 
+            # ── 人工补全中断事件（validate_tasks interrupt）────────────────
+            if etype == "__interrupt__":
+                iv = event["data"]["value"]
+                yield _sse({
+                    "type": "interrupt",
+                    "question": iv.get("question", ""),
+                    "gaps": iv.get("gaps", []),
+                })
+                return  # 不发送 done，等待用户 resume
+
+            node  = event.get("metadata", {}).get("langgraph_node", "")
             event_name = event.get("name", "")
             logger.debug("stream_event", etype=etype, node=node, name=event_name)
 

@@ -14,131 +14,58 @@ DIFY_MOCK_MODE=True 时返回预设的 mock 响应，用于开发/测试阶段�
   - product_query_agent    : 商品信息查询 Agent
 """
 
+import re
+
 import structlog
+from agent_framework.agents.logistics.base_client import SubAgentClient
 from agent_framework.agents.logistics.state import LogisticsAgentType
 
 logger = structlog.get_logger(__name__)
 
-# ── Mock 响应库 ────────────────────────────────────────────────────────────────
-_MOCK_RESPONSES: dict[LogisticsAgentType, str] = {
+# ── Mock 信息提取工具 ──────────────────────────────────────────────────────────
 
-    # ── 下单 Agent ─────────────────────────────────────────────────────────────
-    LogisticsAgentType.PLACE_ORDER: (
-        "【下单Agent】创建订单成功。\n"
-        "订单号：SO-2024-20480\n"
-        "收货方：上海顺丰科技有限公司\n"
-        "收货地址：上海市浦东新区科苑路399号\n"
-        "商品明细：\n"
-        "  · SKU-1001 笔记本电脑 × 50台，单价 ¥6,800，小计 ¥340,000\n"
-        "  · SKU-2033 无线鼠标   × 50个，单价 ¥120，   小计 ¥6,000\n"
-        "订单金额：¥346,000\n"
-        "支付方式：月结\n"
-        "期望交货日期：2024-02-05\n"
-        "备注：易碎品，请轻拿轻放\n"
-        "订单状态：待审核"
-    ),
-
-    # ── 审单 Agent ─────────────────────────────────────────────────────────────
-    LogisticsAgentType.REVIEW_ORDER: (
-        "【审单Agent】审核完成。\n"
-        "订单号：SO-2024-20480\n"
-        "审核结论：通过\n"
-        "审核项目：\n"
-        "  ✅ 客户信用等级：A级，历史欠款为零\n"
-        "  ✅ 库存核查：SKU-1001 可用库存 120台（需50台），SKU-2033 可用库存 200个（需50个），库存充足\n"
-        "  ✅ 价格核查：报价符合当期合同价格表（2024年Q1版本）\n"
-        "  ✅ 收货地址：已在白名单内，无合规风险\n"
-        "  ✅ 付款条件：月结符合客户授权信用额度 ¥500,000\n"
-        "审核人：系统自动审核\n"
-        "审核时间：2024-01-20 14:32:05"
-    ),
-
-    # ── 异常单处理 Agent ────────────────────────────────────────────────────────
-    LogisticsAgentType.EXCEPTION_ORDER: (
-        "【异常单处理Agent】异常处理完成。\n"
-        "关联订单：SO-2024-20391\n"
-        "异常类型：货物破损（运输途中）\n"
-        "异常描述：收货方反馈箱体破损3件，SKU-3021 液晶显示器 × 3台疑似外力冲击受损\n"
-        "处理结果：\n"
-        "  1. 已拍照取证并上传理赔系统（凭证ID：CLM-20240120-001）\n"
-        "  2. 已向顺丰速运发起索赔申请，预计赔付周期 5-7 个工作日\n"
-        "  3. 已为客户补发备用机 × 3台，新运单号：SF9988776655\n"
-        "  4. 订单异常标记已解除，状态更新为「补发处理中」\n"
-        "责任方：承运商（顺丰速运）\n"
-        "预计赔付金额：¥10,200\n"
-        "跟进人：物流客服-张敏（分机 8821）"
-    ),
-
-    # ── 客户信息查询 Agent ──────────────────────────────────────────────────────
-    LogisticsAgentType.CUSTOMER_QUERY: (
-        "【客户查询Agent】查询完成。\n"
-        "客户编号：CUS-10086\n"
-        "客户名称：上海顺丰科技有限公司\n"
-        "客户类型：企业客户（战略级）\n"
-        "信用等级：A级\n"
-        "授信额度：¥2,000,000 / 月结\n"
-        "已用额度：¥346,000（当月）\n"
-        "可用额度：¥1,654,000\n"
-        "联系人：李经理 / 138-xxxx-8899 / li@sf-tech.com\n"
-        "收货地址（默认）：上海市浦东新区科苑路399号 3号楼仓库\n"
-        "近6个月交易记录：\n"
-        "  · 成交订单：42笔，总金额 ¥8,760,000\n"
-        "  · 退货率：0.8%\n"
-        "  · 平均回款周期：28天\n"
-        "  · 逾期记录：0次\n"
-        "客户标签：大客户、长期合作、信用优良\n"
-        "备注：VIP客户，优先处理，专属客服-王芳（分机 6601）"
-    ),
-
-    # ── 商品信息查询 Agent ──────────────────────────────────────────────────────
-    LogisticsAgentType.PRODUCT_QUERY: (
-        "【商品查询Agent】查询完成。\n"
-        "商品编号：SKU-1001\n"
-        "商品名称：笔记本电脑（商务旗舰款）\n"
-        "品牌/型号：联想 ThinkPad X1 Carbon Gen 11\n"
-        "商品分类：3C数码 > 笔记本电脑\n"
-        "规格参数：\n"
-        "  · CPU：Intel Core i7-1365U\n"
-        "  · 内存：16GB LPDDR5\n"
-        "  · 硬盘：512GB NVMe SSD\n"
-        "  · 屏幕：14英寸 2.8K IPS，60Hz\n"
-        "  · 重量：1.12kg\n"
-        "价格信息：\n"
-        "  · 含税单价：¥6,800\n"
-        "  · 合同价（A级客户）：¥6,500\n"
-        "  · 最小起订量：1台\n"
-        "库存状态：\n"
-        "  · 上海仓可用：86台\n"
-        "  · 北京仓可用：34台\n"
-        "  · 在途补货：200台（预计2024-01-25到仓）\n"
-        "物流属性：普货，长途可空运，整箱装载数：20台/箱\n"
-        "质保政策：整机1年，电池6个月，上门服务\n"
-        "备注：热销商品，建议提前备货"
-    ),
-
-    # ── 订单信息查询 Agent ──────────────────────────────────────────────────────
-    LogisticsAgentType.ORDER_QUERY: (
-        "【订单查询Agent】查询完成。\n"
-        "订单号：SO-2024-20480\n"
-        "订单状态：已出库，运输中\n"
-        "创建时间：2024-01-20 10:15:33\n"
-        "审核通过：2024-01-20 14:32:05\n"
-        "出库时间：2024-01-20 18:00:00\n"
-        "商品明细：\n"
-        "  · SKU-1001 笔记本电脑 × 50台\n"
-        "  · SKU-2033 无线鼠标   × 50个\n"
-        "订单金额：¥346,000\n"
-        "承运商：顺丰速运\n"
-        "运单号：SF1234567890\n"
-        "当前位置：上海转运中心（2024-01-21 09:20）\n"
-        "预计到货：2024-01-22 12:00\n"
-        "收货地址：上海市浦东新区科苑路399号\n"
-        "收货联系人：李经理 / 138-xxxx-8899"
-    ),
-}
+def _extract_sku(text: str) -> str:
+    """从指令中提取第一个 SKU 编码。"""
+    m = re.search(r'(SKU[-\s]?\w+)', text, re.IGNORECASE)
+    return m.group(1).upper().replace(" ", "-") if m else "SKU-UNKNOWN"
 
 
-class DifyClient:
+def _extract_qty(text: str) -> tuple[str, str]:
+    """提取数量和单位。优先带单位的数字，其次补充信息中的裸数字。"""
+    m = re.search(r'(\d+)\s*(台|件|个|箱|套|批|pcs)', text, re.IGNORECASE)
+    if m:
+        return m.group(1), m.group(2)
+    supp = re.search(r'补充信息[^0-9]*(\d+)', text)
+    if supp:
+        return supp.group(1), "台"
+    return "1", "台"
+
+
+def _extract_receiver(text: str) -> str:
+    """提取收货方名称。"""
+    m = re.search(
+        r'收货(?:方|人|信息|单位|公司)?[：:\s]*([^\n，,。【]{2,20})',
+        text,
+    )
+    if m:
+        return m.group(1).strip()
+    m = re.search(r'客户[：:\s]*([^\n，,。【]{2,20})', text)
+    return m.group(1).strip() if m else "客户公司"
+
+
+def _extract_order_no(text: str) -> str:
+    """提取订单号。"""
+    m = re.search(r'((?:SO|PO|ORD)[- _]?[A-Z0-9\-]{3,20})', text, re.IGNORECASE)
+    return m.group(1).upper() if m else "SO-UNKNOWN"
+
+
+def _gen_order_no(seed: str) -> str:
+    """根据指令内容生成确定性订单号（同一指令每次相同）。"""
+    h = abs(hash(seed[:60])) % 90000 + 10000
+    return f"SO-2024-{h}"
+
+
+class DifyClient(SubAgentClient):
     """调用 Dify Workflow Run API 的异步客户端。
 
     Args:
@@ -206,6 +133,129 @@ class DifyClient:
             raise
 
     def _mock(self, instruction: str) -> str:
-        base = _MOCK_RESPONSES.get(self.agent_type, f"[Mock] {self.agent_type} 已处理指令：{instruction[:60]}")
         logger.debug("dify_mock_response", agent_type=self.agent_type, instruction=instruction[:80])
-        return base
+        handlers = {
+            LogisticsAgentType.PLACE_ORDER:     self._mock_place_order,
+            LogisticsAgentType.REVIEW_ORDER:    self._mock_review_order,
+            LogisticsAgentType.ORDER_QUERY:     self._mock_order_query,
+            LogisticsAgentType.CUSTOMER_QUERY:  self._mock_customer_query,
+            LogisticsAgentType.PRODUCT_QUERY:   self._mock_product_query,
+            LogisticsAgentType.EXCEPTION_ORDER: self._mock_exception_order,
+        }
+        handler = handlers.get(self.agent_type)
+        return handler(instruction) if handler else f"[Mock] {self.agent_type} 已处理：{instruction[:60]}"
+
+    # ── 各 Agent mock 实现 ──────────────────────────────────────────────────────
+
+    def _mock_place_order(self, instruction: str) -> str:
+        sku      = _extract_sku(instruction)
+        qty, unit = _extract_qty(instruction)
+        receiver = _extract_receiver(instruction)
+        order_no = _gen_order_no(instruction)
+        unit_price = 6800
+        total = int(qty) * unit_price
+        return (
+            f"【下单Agent】创建订单成功。\n"
+            f"订单号：{order_no}\n"
+            f"收货方：{receiver}\n"
+            f"商品明细：\n"
+            f"  · {sku} × {qty}{unit}，单价 ¥{unit_price:,}，小计 ¥{total:,}\n"
+            f"订单金额：¥{total:,}\n"
+            f"支付方式：月结\n"
+            f"期望交货日期：2024-02-10\n"
+            f"订单状态：待审核"
+        )
+
+    def _mock_review_order(self, instruction: str) -> str:
+        order_no  = _extract_order_no(instruction)
+        sku       = _extract_sku(instruction)
+        qty, unit = _extract_qty(instruction)
+        # SKU 可能来自 inject_predecessor_context 注入；若未注入则用通用描述
+        sku_text  = sku if sku != "SKU-UNKNOWN" else "所需商品"
+        stock     = int(qty) + 80
+        return (
+            f"【审单Agent】审核完成。\n"
+            f"订单号：{order_no}\n"
+            f"审核结论：通过\n"
+            f"审核项目：\n"
+            f"  ✅ 客户信用等级：A级，历史无欠款\n"
+            f"  ✅ 库存核查：{sku_text} 可用库存 {stock}{unit}（需 {qty}{unit}），库存充足\n"
+            f"  ✅ 价格核查：报价符合合同价格表\n"
+            f"  ✅ 收货地址：已在白名单内，无合规风险\n"
+            f"  ✅ 付款条件：月结符合授信额度\n"
+            f"审核人：系统自动审核\n"
+            f"审核时间：2024-01-20 14:32:05"
+        )
+
+    def _mock_order_query(self, instruction: str) -> str:
+        order_no  = _extract_order_no(instruction)
+        waybill   = f"SF{abs(hash(order_no)) % 9000000000 + 1000000000}"
+        # 尝试从 instruction / 历史注入中提取 SKU；无则仅展示物流信息
+        sku       = _extract_sku(instruction)
+        sku_line  = f"商品明细：{sku}\n" if sku != "SKU-UNKNOWN" else ""
+        return (
+            f"【订单查询Agent】查询完成。\n"
+            f"订单号：{order_no}\n"
+            f"订单状态：已出库，运输中\n"
+            f"{sku_line}"
+            f"承运商：顺丰速运\n"
+            f"运单号：{waybill}\n"
+            f"当前位置：上海转运中心（2024-01-21 09:20）\n"
+            f"预计到货：2024-01-22 18:00"
+        )
+
+    def _mock_customer_query(self, instruction: str) -> str:
+        # 尝试提取客户名称或编号
+        m = re.search(r'(CUS[-\s]?\w+)', instruction, re.IGNORECASE)
+        cus_id   = m.group(1).upper() if m else "CUS-10086"
+        m2       = re.search(r'客户[：:\s]*([^\n，,。【]{2,20})', instruction)
+        cus_name = m2.group(1).strip() if m2 else "上海顺丰科技有限公司"
+        return (
+            f"【客户查询Agent】查询完成。\n"
+            f"客户编号：{cus_id}\n"
+            f"客户名称：{cus_name}\n"
+            f"客户类型：企业客户（战略级）\n"
+            f"信用等级：A级\n"
+            f"授信额度：¥2,000,000 / 月结\n"
+            f"联系人：李经理 / 138-xxxx-8899\n"
+            f"近6个月成交订单：42笔，总金额 ¥8,760,000\n"
+            f"逾期记录：0次\n"
+            f"客户标签：大客户、长期合作、信用优良"
+        )
+
+    def _mock_product_query(self, instruction: str) -> str:
+        sku = _extract_sku(instruction)
+        # 根据 SKU 编号推断商品名（简单映射，未知则用通用名）
+        _SKU_NAMES = {
+            "SKU-1001": ("笔记本电脑（商务旗舰款）", "¥6,800", "3C数码"),
+            "SKU-2033": ("无线鼠标（人体工学款）",   "¥120",   "3C配件"),
+            "SKU-3021": ("液晶显示器（27寸 4K）",    "¥3,200", "3C数码"),
+        }
+        name, price, category = _SKU_NAMES.get(sku, ("通用商品", "¥999", "其他"))
+        return (
+            f"【商品查询Agent】查询完成。\n"
+            f"商品编号：{sku}\n"
+            f"商品名称：{name}\n"
+            f"商品分类：{category}\n"
+            f"含税单价：{price}\n"
+            f"库存状态：上海仓可用 86件，北京仓可用 34件\n"
+            f"最小起订量：1件\n"
+            f"质保政策：整机1年，上门服务"
+        )
+
+    def _mock_exception_order(self, instruction: str) -> str:
+        order_no  = _extract_order_no(instruction)
+        exc_match = re.search(r'(破损|丢件|延误|短货|质量|异常|货损|缺货)', instruction)
+        exc_type  = exc_match.group(1) if exc_match else "异常"
+        return (
+            f"【异常单处理Agent】处理完成。\n"
+            f"关联订单：{order_no}\n"
+            f"异常类型：{exc_type}\n"
+            f"处理结果：\n"
+            f"  1. 已拍照取证并上传理赔系统\n"
+            f"  2. 已向承运商发起索赔，预计赔付 5-7 个工作日\n"
+            f"  3. 已安排补发，新运单号：SF{abs(hash(order_no)) % 9000000000 + 1000000000}\n"
+            f"  4. 订单状态已更新为「补发处理中」\n"
+            f"责任方：承运商\n"
+            f"跟进人：物流客服-张敏（分机 8821）"
+        )

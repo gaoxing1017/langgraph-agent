@@ -21,6 +21,7 @@ class RunRequest(BaseModel):
     tools_enabled: list[str] = Field(default_factory=list)
     memory_enabled: bool = True
     metadata: dict[str, Any] = Field(default_factory=dict)
+    resume: str | None = Field(default=None, description="Resume value for interrupted graph (HITL)")
 
 
 class CreateThreadRequest(BaseModel):

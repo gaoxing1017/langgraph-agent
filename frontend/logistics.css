@@ -653,6 +653,13 @@ html, body {
 .process-bubble.collapsed .process-toggle { transform: rotate(-90deg); }
 .process-bubble.collapsed .process-body  { display: none; }
 
+.process-body {
+  transition: opacity 0.2s ease;
+}
+.process-bubble.collapsing .process-body {
+  opacity: 0;
+}
+
 /* Spinning circle indicator */
 .process-spinner {
   display: inline-block;
@@ -696,31 +703,34 @@ html, body {
 }
 
 .process-task-row {
-  display: grid;
-  grid-template-columns: 18px auto 1fr;
-  grid-template-areas:
-    "status agent instruction"
-    ".      result result"
-    ".      error  error";
-  column-gap: 8px;
-  row-gap: 3px;
-  align-items: start;
-  padding: 7px 10px;
   border-radius: 7px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-left: 3px solid var(--border-deep);
+  overflow: hidden;
 }
 .process-task-row.status-completed { border-left-color: var(--success); }
 .process-task-row.status-failed    { border-left-color: var(--danger); }
 .process-task-row.status-running   { border-left-color: var(--accent); }
 .process-task-row.status-pending   { border-left-color: var(--border-deep); }
 
+/* ── 行头（始终可见，有结果时可点击折叠）─── */
+.proc-row-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 7px 10px;
+}
+.proc-row-header.clickable {
+  cursor: pointer;
+  user-select: none;
+}
+.proc-row-header.clickable:hover { background: var(--surface2); }
+
 .proc-status {
-  grid-area: status;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
   font-size: 12px;
   padding-top: 1px;
 }
@@ -736,7 +746,7 @@ html, body {
 }
 
 .proc-agent {
-  grid-area: agent;
+  flex-shrink: 0;
   font-weight: 600;
   color: var(--text);
   font-size: 12px;
@@ -744,25 +754,38 @@ html, body {
 }
 
 .proc-instruction {
-  grid-area: instruction;
+  flex: 1;
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.5;
   word-break: break-word;
 }
 
+.proc-toggle {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-light);
+  padding-top: 3px;
+  transition: transform 0.15s;
+}
+.process-task-row.task-collapsed .proc-toggle { transform: rotate(-90deg); }
+
+/* ── 折叠区：结果 / 错误 ─────────────── */
+.proc-detail {
+  padding: 0 10px 8px 36px;
+}
+.process-task-row.task-collapsed .proc-detail { display: none; }
+
 .proc-result {
-  grid-area: result;
-  margin-top: 2px;
   font-size: 12px;
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 4px 7px;
+  padding: 6px 9px;
   white-space: pre-wrap;
   word-break: break-word;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .proc-error {
@@ -771,4 +794,193 @@ html, body {
   font-size: 12px;
   color: var(--danger);
   font-style: italic;
+}
+
+/* ── Process bubble: paused state ──────────────────────── */
+.proc-paused-icon {
+  color: #d97706;
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ── HITL Interrupt Card ───────────────────────────────── */
+.interrupt-card {
+  background: var(--surface);
+  border: 1.5px solid #f59e0b;
+  border-radius: 10px;
+  border-bottom-left-radius: 2px;
+  max-width: 480px;
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.interrupt-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fffbeb;
+  border-bottom: 1px solid #fde68a;
+}
+
+.interrupt-icon {
+  color: #d97706;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.interrupt-title {
+  font-weight: 700;
+  color: #92400e;
+  font-size: 13px;
+}
+
+.interrupt-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Missing-fields list */
+.interrupt-gap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.interrupt-gap-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 7px;
+}
+
+.interrupt-gap-agent {
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.interrupt-gap-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.interrupt-field-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #78350f;
+  white-space: nowrap;
+}
+
+/* Input section */
+.interrupt-input-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.interrupt-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.interrupt-input {
+  resize: none;
+  border: 1.5px solid var(--border-deep);
+  border-radius: 7px;
+  padding: 9px 11px;
+  font-size: 13px;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.5;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.interrupt-input:focus { border-color: #f59e0b; box-shadow: 0 0 0 2px #fef3c7; }
+
+.interrupt-input-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.interrupt-hint {
+  font-size: 11px;
+  color: var(--text-light);
+}
+
+.btn-interrupt-submit {
+  padding: 8px 18px;
+  background: #d97706;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-interrupt-submit:hover    { background: #b45309; }
+.btn-interrupt-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Submitted state ──────────────────────────────────── */
+.interrupt-header-done {
+  background: #f0fdf4;
+  border-bottom: 1px solid #bbf7d0;
+}
+
+.interrupt-icon-done {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  background: var(--success);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.interrupt-title-done {
+  font-weight: 700;
+  color: #166534;
+  font-size: 13px;
+}
+
+.interrupt-submitted-body {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.interrupt-submitted-label {
+  font-size: 11px;
+  color: var(--text-light);
+}
+
+.interrupt-submitted-value {
+  font-size: 13px;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
 }

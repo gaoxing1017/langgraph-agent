@@ -21,6 +21,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent_framework.agents.logistics.agent import LogisticsOrchestratorAgent
+from agent_framework.agents.logistics.skill_defaults import build_default_skill_registry
 from agent_framework.api.middleware import LoggingMiddleware, RequestIDMiddleware
 from agent_framework.api.routes import admin, health, runs, threads
 from agent_framework.api.routes import a2a as a2a_routes
@@ -59,8 +60,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     graph = build_react_graph().compile(checkpointer=checkpointer, store=store)
     app.state.graph = graph
 
-    # 物流协调器 Agent
-    logistics_agent = LogisticsOrchestratorAgent(settings)
+    # 物流协调器 Agent（注入内置 Skill 注册表）
+    skill_registry = build_default_skill_registry()
+    logistics_agent = LogisticsOrchestratorAgent(settings, skill_registry=skill_registry)
     logistics_agent.build_graph(checkpointer=checkpointer, store=store)
     app.state.logistics_agent = logistics_agent
 

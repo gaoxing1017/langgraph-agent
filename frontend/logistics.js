@@ -13,11 +13,15 @@ const AGENT_META = {
   order_query_agent:     { icon: '🔍', label: '订单查询 Agent' },
   customer_query_agent:  { icon: '👤', label: '客户查询 Agent' },
   product_query_agent:   { icon: '📦', label: '商品查询 Agent' },
+  skill_agent:           { icon: '⚡', label: 'Skill' },
 };
 
 const STATUS_LABEL = {
   completed: '完成', failed: '失败', running: '运行中', pending: '等待',
 };
+
+// 记录用户手动折叠的子任务 task_id，跨 re-render 持久化
+const _collapsedTasks = new Set();
 
 // ── State ──────────────────────────────────────────────────────────────────────
 let threads = [];
@@ -46,6 +50,14 @@ function deleteHistory(threadId) {
 function pushHistory(threadId, role, content) {
   const hist = loadHistory(threadId);
   hist.push({ role, content });
+  saveHistory(threadId, hist);
+}
+
+// Append a process-bubble snapshot (intent + final task list)
+function pushProcessHistory(threadId, intent, taskMap) {
+  if (!Object.keys(taskMap).length) return;
+  const hist = loadHistory(threadId);
+  hist.push({ role: 'process', intent, tasks: Object.values(taskMap) });
   saveHistory(threadId, hist);
 }
 
@@ -145,7 +157,12 @@ function switchThread(id) {
     const area = document.createElement('div');
     area.className = 'chat-messages-area';
     messagesEl.appendChild(area);
-    hist.forEach(({ role, content }) => {
+    hist.forEach(entry => {
+      if (entry.role === 'process') {
+        restoreProcessBubble(area, entry.intent || '', entry.tasks || []);
+        return;
+      }
+      const { role, content } = entry;
       const avatarChar = role === 'user' ? '您' : '◈';
       const div = document.createElement('div');
       div.className = `msg ${role}`;
@@ -378,6 +395,7 @@ async function sendStreaming(payload) {
 
   // Task panel: live state map keyed by task_id
   const liveTaskMap = {};
+  let liveIntent = '';
   taskPanelBody.innerHTML = '';
   turnBadge.textContent = '';
 
@@ -414,8 +432,9 @@ async function sendStreaming(payload) {
 
         // ── 规划完成：渲染意图 + 待执行任务列表 ──────────────────────
         case 'plan': {
+          liveIntent = evt.intent || '';
           (evt.tasks || []).forEach(t => { liveTaskMap[t.task_id] = t; });
-          renderProcessBubble(processBubble, evt.intent, liveTaskMap);
+          renderProcessBubble(processBubble, liveIntent, liveTaskMap);
           renderLiveTaskPanel(liveTaskMap);
           break;
         }
@@ -444,6 +463,16 @@ async function sendStreaming(payload) {
           finalizeProcessBubble(processBubble, liveTaskMap);
           if (answerBubble) answerBubble.classList.remove('streaming');
           if (fullAnswer)   pushHistory(activeThreadId, 'assistant', fullAnswer);
+          pushProcessHistory(activeThreadId, liveIntent, liveTaskMap);
+          break;
+        }
+
+        // ── HITL：缺少必要信息，等待用户补充 ──────────────────────────
+        case 'interrupt': {
+          streamFinished = true;
+          finalizeProcessBubblePaused(processBubble);
+          if (answerBubble) answerBubble.classList.remove('streaming');
+          appendInterruptCard(evt.gaps || [], payload);
           break;
         }
 
@@ -467,7 +496,139 @@ async function sendStreaming(payload) {
   if (answerBubble) answerBubble.classList.remove('streaming');
 }
 
+// ── HITL interrupt card ────────────────────────────────────────────────────────
+function appendInterruptCard(gaps, originalPayload) {
+  const area = getChatArea();
+  const div  = document.createElement('div');
+  div.className = 'msg assistant';
+
+  // Build gap rows from structured data
+  const gapRows = gaps.map(g => {
+    const agentLabel = escapeHtml(g.agent_label || g.agent_type);
+    const chips = (g.missing_fields || []).map(f =>
+      `<span class="interrupt-field-chip">${escapeHtml(f)}</span>`
+    ).join('');
+    return `
+      <div class="interrupt-gap-item">
+        <span class="interrupt-gap-agent">【${agentLabel}】</span>
+        <span class="interrupt-gap-fields">${chips}</span>
+      </div>`;
+  }).join('');
+
+  // Build placeholder from all missing field names
+  const allFields = gaps.flatMap(g => g.missing_fields || []);
+  const placeholder = allFields.length
+    ? `请填写：${allFields.join('、')}`
+    : '请输入补充信息';
+
+  div.innerHTML = `
+    <div class="avatar">◈</div>
+    <div class="interrupt-card">
+      <div class="interrupt-header">
+        <span class="interrupt-icon">⚠</span>
+        <span class="interrupt-title">执行前需补充以下信息</span>
+      </div>
+      <div class="interrupt-body">
+        <div class="interrupt-gap-list">${gapRows}</div>
+        <div class="interrupt-input-wrap">
+          <label class="interrupt-input-label">请输入补充内容（多项用逗号分隔）：</label>
+          <textarea class="interrupt-input" placeholder="${escapeHtml(placeholder)}" rows="2"></textarea>
+          <div class="interrupt-input-actions">
+            <span class="interrupt-hint">按 Enter 快速提交，Shift+Enter 换行</span>
+            <button class="btn-interrupt-submit">确认提交</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const textarea = div.querySelector('.interrupt-input');
+  const btn      = div.querySelector('.btn-interrupt-submit');
+
+  btn.addEventListener('click', async () => {
+    const supplement = textarea.value.trim();
+    if (!supplement) { textarea.focus(); return; }
+
+    btn.disabled = true;
+    btn.textContent = '提交中…';
+    textarea.disabled = true;
+
+    const resumePayload = { ...originalPayload, resume: supplement };
+    setLoading(true);
+    try {
+      if (resumePayload.stream) {
+        await sendStreaming(resumePayload);
+      } else {
+        await sendSync(resumePayload);
+      }
+      _markInterruptSubmitted(div, supplement, gaps);
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = '确认提交';
+      textarea.disabled = false;
+      appendError('补充信息提交失败：' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  textarea.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); btn.click(); }
+  });
+
+  area.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  requestAnimationFrame(() => textarea.focus());
+}
+
+function _markInterruptSubmitted(msgDiv, supplement, gaps) {
+  const card = msgDiv.querySelector('.interrupt-card');
+  if (!card) return;
+
+  const fieldLabel = (gaps || []).flatMap(g => g.missing_fields || []).join(' / ') || '补充信息';
+
+  card.innerHTML = `
+    <div class="interrupt-header interrupt-header-done">
+      <span class="interrupt-icon-done">✓</span>
+      <span class="interrupt-title-done">已提交：${escapeHtml(fieldLabel)}</span>
+    </div>
+    <div class="interrupt-submitted-body">
+      <span class="interrupt-submitted-label">补充内容</span>
+      <div class="interrupt-submitted-value">${escapeHtml(supplement)}</div>
+    </div>
+  `;
+}
+
 // ── Process bubble helpers ─────────────────────────────────────────────────────
+
+/**
+ * 从 history 快照恢复一个已折叠的 process bubble（切换会话时调用）。
+ */
+function restoreProcessBubble(area, intent, tasks) {
+  const taskMap = {};
+  tasks.forEach(t => { taskMap[t.task_id] = t; });
+
+  const div = document.createElement('div');
+  div.className = 'msg assistant process-msg';
+  div.innerHTML = `
+    <div class="avatar">◈</div>
+    <div class="process-bubble collapsed">
+      <div class="process-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="process-done-icon">✓</span>
+        <span class="process-title">${escapeHtml(intent ? `已完成：${intent}` : '执行完成')}</span>
+        <span class="process-toggle">▼</span>
+      </div>
+      <div class="process-body"></div>
+    </div>
+  `;
+  area.appendChild(div);
+
+  const bubble = div.querySelector('.process-bubble');
+  renderProcessBubble(bubble, intent, taskMap);
+  // 恢复时保持折叠
+  bubble.classList.add('collapsed');
+}
+
 function appendProcessBubble() {
   const area = ensureChatArea();
   const div = document.createElement('div');
@@ -529,9 +690,11 @@ function renderProcessBubble(bubble, intent, taskMap) {
   }
 
   tasks.forEach(t => {
-    const meta = AGENT_META[t.agent_type] || { icon: '🤖', label: t.agent_type };
-    const row  = document.createElement('div');
-    row.className = `process-task-row status-${t.status}`;
+    const meta       = AGENT_META[t.agent_type] || { icon: '🤖', label: t.agent_type };
+    const hasDetail  = (t.result && t.status === 'completed') || !!t.error;
+    const isCollapsed = _collapsedTasks.has(t.task_id);
+    const row        = document.createElement('div');
+    row.className    = `process-task-row status-${t.status}${isCollapsed ? ' task-collapsed' : ''}`;
 
     const statusIcon = {
       pending:   '<span class="proc-spin"></span>',
@@ -541,14 +704,30 @@ function renderProcessBubble(bubble, intent, taskMap) {
     }[t.status] || '⏳';
 
     row.innerHTML = `
-      <span class="proc-status">${statusIcon}</span>
-      <span class="proc-agent">${meta.icon} ${meta.label}</span>
-      <span class="proc-instruction">${escapeHtml(t.instruction)}</span>
-      ${t.result && t.status === 'completed'
-        ? `<div class="proc-result">${escapeHtml(t.result.slice(0, 120))}${t.result.length > 120 ? '…' : ''}</div>`
-        : ''}
-      ${t.error ? `<div class="proc-error">${escapeHtml(t.error)}</div>` : ''}
+      <div class="proc-row-header${hasDetail ? ' clickable' : ''}">
+        <span class="proc-status">${statusIcon}</span>
+        <span class="proc-agent">${meta.icon} ${meta.label}</span>
+        <span class="proc-instruction">${escapeHtml(t.instruction)}</span>
+        ${hasDetail ? '<span class="proc-toggle">▼</span>' : ''}
+      </div>
+      ${hasDetail ? `
+        <div class="proc-detail">
+          ${t.result && t.status === 'completed'
+            ? `<div class="proc-result">${escapeHtml(t.result)}</div>`
+            : ''}
+          ${t.error ? `<div class="proc-error">${escapeHtml(t.error)}</div>` : ''}
+        </div>
+      ` : ''}
     `;
+
+    if (hasDetail) {
+      row.querySelector('.proc-row-header').addEventListener('click', () => {
+        const collapsed = _collapsedTasks.has(t.task_id);
+        collapsed ? _collapsedTasks.delete(t.task_id) : _collapsedTasks.add(t.task_id);
+        row.classList.toggle('task-collapsed');
+      });
+    }
+
     body.appendChild(row);
   });
 
@@ -556,7 +735,6 @@ function renderProcessBubble(bubble, intent, taskMap) {
 }
 
 function finalizeProcessBubble(bubble, taskMap) {
-  // Only act if spinner is still spinning (not already finalized by renderProcessBubble)
   const spinner = bubble.querySelector('.process-spinner');
   const title   = bubble.querySelector('.process-title');
   if (spinner) {
@@ -569,6 +747,17 @@ function finalizeProcessBubble(bubble, taskMap) {
         : '执行完成';
     }
   }
+  // 执行完成后延迟自动收起（先淡出，再折叠）
+  const pb = bubble.querySelector('.process-bubble');
+  if (pb && !pb.classList.contains('collapsed')) {
+    setTimeout(() => {
+      pb.classList.add('collapsing');
+      setTimeout(() => {
+        pb.classList.remove('collapsing');
+        pb.classList.add('collapsed');
+      }, 200);
+    }, 1500);
+  }
 }
 
 function finalizeProcessBubbleError(bubble, message) {
@@ -576,6 +765,21 @@ function finalizeProcessBubbleError(bubble, message) {
   const title   = bubble.querySelector('.process-title');
   if (spinner) { spinner.className = 'process-done-icon'; spinner.textContent = '✕'; spinner.style.color = 'var(--danger)'; }
   if (title)   { title.textContent = `出错：${message.slice(0, 60)}`; title.style.color = 'var(--danger)'; }
+}
+
+function finalizeProcessBubblePaused(bubble) {
+  const spinner = bubble.querySelector('.process-spinner, .process-done-icon');
+  const title   = bubble.querySelector('.process-title');
+  if (spinner) {
+    spinner.classList.remove('proc-spin');
+    spinner.className = 'proc-paused-icon';
+    spinner.textContent = '⏸';
+    spinner.style.color = '';
+  }
+  if (title) {
+    title.textContent = '等待补充信息';
+    title.style.color = '#d97706';
+  }
 }
 
 function renderLiveTaskPanel(taskMap) {

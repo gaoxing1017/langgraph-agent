@@ -27,6 +27,7 @@ class LogisticsAgentType(str, Enum):
     ORDER_QUERY      = "order_query_agent"       # 订单信息查询 Agent
     CUSTOMER_QUERY   = "customer_query_agent"    # 客户信息查询 Agent
     PRODUCT_QUERY    = "product_query_agent"     # 商品信息查询 Agent
+    SKILL            = "skill_agent"             # 通用 Skill 节点
 
 
 class TaskStatus(str, Enum):
@@ -40,6 +41,7 @@ class SubTask(BaseModel):
     task_id: str
     turn: int = 0                    # 所属轮次，用于多轮隔离
     agent_type: LogisticsAgentType
+    skill_name: str | None = None    # agent_type == SKILL 时指定具体 skill
     instruction: str
     status: TaskStatus = TaskStatus.PENDING
     result: str | None = None
