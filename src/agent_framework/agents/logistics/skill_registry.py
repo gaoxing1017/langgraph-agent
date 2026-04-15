@@ -26,8 +26,10 @@ class SkillDef:
     """单个 Skill 的定义。"""
     name: str
     description: str
-    fn: Callable[..., Any]           # (instruction: str, **kwargs) -> str | Awaitable[str]
+    fn: Callable[..., Any]                              # (instruction: str) -> str | Awaitable[str]
     examples: list[str] = field(default_factory=list)   # 可选：触发示例，用于 prompt 注入
+    required_fields: list[str] = field(default_factory=list)  # 执行前必须具备的字段（供校验提示）
+    source: str = "python"                              # "python" | "md"，用于日志/可观测性
 
 
 class SkillRegistry:
@@ -71,6 +73,13 @@ class SkillRegistry:
 
     def is_empty(self) -> bool:
         return len(self._skills) == 0
+
+    def remove(self, name: str) -> bool:
+        """删除已注册的 Skill，返回是否存在并被删除。"""
+        if name in self._skills:
+            del self._skills[name]
+            return True
+        return False
 
     def prompt_description(self) -> str:
         """生成注入 LLM 系统提示的 Skill 描述段落。"""

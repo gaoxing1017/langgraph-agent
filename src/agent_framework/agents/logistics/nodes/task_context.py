@@ -26,19 +26,8 @@ EXTRACTION_RULES: dict[LogisticsAgentType, list[tuple[str, str]]] = {
     LogisticsAgentType.REVIEW_ORDER: [
         ("订单号", r"((?:SO|PO|ORD)[- _]?[A-Z0-9\-]{3,20})"),
     ],
-    LogisticsAgentType.ORDER_QUERY: [
-        ("订单号", r"((?:SO|PO|ORD)[- _]?[A-Z0-9\-]{3,20})"),
-        ("运单号", r"((?:SF|YT|JD|TMS)[A-Z0-9\-]{5,20})"),
-        ("SKU编码", r"(SKU[-\s]?\w+)"),
-    ],
     LogisticsAgentType.EXCEPTION_ORDER: [
         ("订单号", r"((?:SO|PO|ORD)[- _]?[A-Z0-9\-]{3,20})"),
-    ],
-    LogisticsAgentType.CUSTOMER_QUERY: [
-        ("客户编码", r"(CUS[-\s]?\w+)"),
-    ],
-    LogisticsAgentType.PRODUCT_QUERY: [
-        ("SKU编码", r"(SKU[-\s]?\w+)"),
     ],
 }
 
@@ -56,15 +45,6 @@ REQUIRED_FIELDS: dict[LogisticsAgentType, list[tuple[str, str]]] = {
     LogisticsAgentType.EXCEPTION_ORDER: [
         (r"(SO|PO|ORD)[- _]?\w{3,}|订单\s*(?:号|编号|ID)", "订单号"),
         (r"破损|丢件|延误|短货|质量|异常|投诉|补发|货损|缺货", "异常描述"),
-    ],
-    LogisticsAgentType.ORDER_QUERY: [
-        (r"(SO|PO|ORD)[- _]?\w{3,}|订单\s*(?:号|编号|ID)", "订单号"),
-    ],
-    LogisticsAgentType.CUSTOMER_QUERY: [
-        (r"CUS[-\s]?\w+|客户\s*(?:编码|ID|号|名称)|买家|客户", "客户编码/名称"),
-    ],
-    LogisticsAgentType.PRODUCT_QUERY: [
-        (r"SKU[-\s]?\w+|商品\s*(?:编码|ID|号)|产品\s*(?:编码|ID)|商品|产品", "商品/SKU编码"),
     ],
 }
 

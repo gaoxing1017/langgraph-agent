@@ -6,26 +6,28 @@ from __future__ import annotations
 并在 FastAPI lifespan 中注入 LogisticsOrchestratorAgent。
 """
 
+from typing import TYPE_CHECKING
+
 from agent_framework.agents.logistics.skill_registry import SkillRegistry
 from agent_framework.agents.logistics.skills.customer_query import query_customer_info
 from agent_framework.agents.logistics.skills.order_query import query_order_status
-from agent_framework.agents.logistics.skills.product_query import query_product_info
+
+if TYPE_CHECKING:
+    from agent_framework.config.settings import Settings
 
 
-def build_default_skill_registry() -> SkillRegistry:
-    """创建并返回内置 Skill 的注册表。"""
+def build_default_skill_registry(settings: Settings | None = None) -> SkillRegistry:  # noqa: ARG001
+    """创建并返回内置 Python Skill 的注册表。
+
+    settings 参数预留给未来 Python skill 需要配置注入的场景，当前暂未使用。
+    md skill 的加载由调用方（app.py lifespan）通过 SkillMDLoader 单独完成。
+    """
     registry = SkillRegistry()
     registry.add(
         name="query_order_status",
         description="查询订单当前状态与物流信息（需提供订单号）",
         fn=query_order_status,
         examples=["查一下订单 SO-001 的物流状态", "SO-2024-12345 到哪了"],
-    )
-    registry.add(
-        name="query_product_info",
-        description="查询商品详情、规格参数、含税单价与库存状态（需提供商品编码/SKU）",
-        fn=query_product_info,
-        examples=["SKU-1001 的价格是多少", "查一下 SKU-3021 的库存"],
     )
     registry.add(
         name="query_customer_info",

@@ -51,6 +51,7 @@ ANALYZE_AND_PLAN_SYSTEM_PROMPT = """你是一个企业级供应链智能协调�
 - 用户要查"客户"、"买家"、"信用"、"授信"、"联系方式" → skill_agent（skill_name="query_customer_info"）
 - 用户要查"商品"、"SKU"、"产品"、"规格"、"价格" → skill_agent（skill_name="query_product_info"）
 - 下单前如需确认商品价格可先用 skill_agent（query_product_info），再调用 place_order_agent，请根据业务逻辑判断是否需要多步骤任务
+- 订单审核前如需确认商品价格、客户信息可先用 skill_agent（query_product_info、query_customer_info），再调用 review_order_agent，请根据业务逻辑判断是否需要多步骤任务
 
 规则：
 - 按实际需要选择最少的 agent 类型

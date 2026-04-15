@@ -15,6 +15,7 @@ from agent_framework.agents.logistics.llm_client import LLMSubAgent
 from agent_framework.agents.logistics.python_client import PythonSubAgent
 from agent_framework.agents.logistics.skill_client import SkillClient
 from agent_framework.agents.logistics.skill_defaults import build_default_skill_registry
+from agent_framework.agents.logistics.skill_md_loader import SkillMDLoader
 from agent_framework.agents.logistics.skill_registry import SkillDef, SkillRegistry
 from agent_framework.agents.logistics.state import (
     LogisticsAgentType,
@@ -49,4 +50,6 @@ __all__ = [
     "build_agent_registry",
     # 默认 Skill 注册表
     "build_default_skill_registry",
+    # MD 动态加载器
+    "SkillMDLoader",
 ]

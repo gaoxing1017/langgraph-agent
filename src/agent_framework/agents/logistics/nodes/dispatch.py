@@ -37,9 +37,6 @@ _AGENT_LABELS = {
     "place_order_agent":     "下单 Agent",
     "review_order_agent":    "审单 Agent",
     "exception_order_agent": "异常单处理 Agent",
-    "order_query_agent":     "订单查询 Agent",
-    "customer_query_agent":  "客户查询 Agent",
-    "product_query_agent":   "商品查询 Agent",
     "skill_agent":           "Skill Agent",
 }
 

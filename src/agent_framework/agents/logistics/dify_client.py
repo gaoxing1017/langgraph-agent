@@ -5,13 +5,10 @@ from __future__ import annotations
 封装对 Dify Workflow Run API 的 HTTP 调用。
 DIFY_MOCK_MODE=True 时返回预设的 mock 响应，用于开发/测试阶段。
 
-当前支持的 Agent 类型：
+当前支持的 Agent 类型（查询类已迁移为 Skill）：
   - place_order_agent      : 下单 Agent
   - review_order_agent     : 审单 Agent
   - exception_order_agent  : 异常单处理 Agent
-  - order_query_agent      : 订单信息查询 Agent
-  - customer_query_agent   : 客户信息查询 Agent
-  - product_query_agent    : 商品信息查询 Agent
 """
 
 import re
@@ -137,9 +134,6 @@ class DifyClient(SubAgentClient):
         handlers = {
             LogisticsAgentType.PLACE_ORDER:     self._mock_place_order,
             LogisticsAgentType.REVIEW_ORDER:    self._mock_review_order,
-            LogisticsAgentType.ORDER_QUERY:     self._mock_order_query,
-            LogisticsAgentType.CUSTOMER_QUERY:  self._mock_customer_query,
-            LogisticsAgentType.PRODUCT_QUERY:   self._mock_product_query,
             LogisticsAgentType.EXCEPTION_ORDER: self._mock_exception_order,
         }
         handler = handlers.get(self.agent_type)
@@ -185,62 +179,6 @@ class DifyClient(SubAgentClient):
             f"  ✅ 付款条件：月结符合授信额度\n"
             f"审核人：系统自动审核\n"
             f"审核时间：2024-01-20 14:32:05"
-        )
-
-    def _mock_order_query(self, instruction: str) -> str:
-        order_no  = _extract_order_no(instruction)
-        waybill   = f"SF{abs(hash(order_no)) % 9000000000 + 1000000000}"
-        # 尝试从 instruction / 历史注入中提取 SKU；无则仅展示物流信息
-        sku       = _extract_sku(instruction)
-        sku_line  = f"商品明细：{sku}\n" if sku != "SKU-UNKNOWN" else ""
-        return (
-            f"【订单查询Agent】查询完成。\n"
-            f"订单号：{order_no}\n"
-            f"订单状态：已出库，运输中\n"
-            f"{sku_line}"
-            f"承运商：顺丰速运\n"
-            f"运单号：{waybill}\n"
-            f"当前位置：上海转运中心（2024-01-21 09:20）\n"
-            f"预计到货：2024-01-22 18:00"
-        )
-
-    def _mock_customer_query(self, instruction: str) -> str:
-        # 尝试提取客户名称或编号
-        m = re.search(r'(CUS[-\s]?\w+)', instruction, re.IGNORECASE)
-        cus_id   = m.group(1).upper() if m else "CUS-10086"
-        m2       = re.search(r'客户[：:\s]*([^\n，,。【]{2,20})', instruction)
-        cus_name = m2.group(1).strip() if m2 else "上海顺丰科技有限公司"
-        return (
-            f"【客户查询Agent】查询完成。\n"
-            f"客户编号：{cus_id}\n"
-            f"客户名称：{cus_name}\n"
-            f"客户类型：企业客户（战略级）\n"
-            f"信用等级：A级\n"
-            f"授信额度：¥2,000,000 / 月结\n"
-            f"联系人：李经理 / 138-xxxx-8899\n"
-            f"近6个月成交订单：42笔，总金额 ¥8,760,000\n"
-            f"逾期记录：0次\n"
-            f"客户标签：大客户、长期合作、信用优良"
-        )
-
-    def _mock_product_query(self, instruction: str) -> str:
-        sku = _extract_sku(instruction)
-        # 根据 SKU 编号推断商品名（简单映射，未知则用通用名）
-        _SKU_NAMES = {
-            "SKU-1001": ("笔记本电脑（商务旗舰款）", "¥6,800", "3C数码"),
-            "SKU-2033": ("无线鼠标（人体工学款）",   "¥120",   "3C配件"),
-            "SKU-3021": ("液晶显示器（27寸 4K）",    "¥3,200", "3C数码"),
-        }
-        name, price, category = _SKU_NAMES.get(sku, ("通用商品", "¥999", "其他"))
-        return (
-            f"【商品查询Agent】查询完成。\n"
-            f"商品编号：{sku}\n"
-            f"商品名称：{name}\n"
-            f"商品分类：{category}\n"
-            f"含税单价：{price}\n"
-            f"库存状态：上海仓可用 86件，北京仓可用 34件\n"
-            f"最小起订量：1件\n"
-            f"质保政策：整机1年，上门服务"
         )
 
     def _mock_exception_order(self, instruction: str) -> str:

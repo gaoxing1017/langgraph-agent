@@ -108,6 +108,10 @@ class Settings(BaseSettings):
     ORCHESTRATOR_KEEP_LAST_MESSAGES: int = 20  # 消息裁剪保留数（约 10 轮）
     ORCHESTRATOR_TASK_HISTORY_SIZE: int = 20   # task_history 最大保留轮数
 
+    # Skill MD 动态加载
+    SKILL_MD_DIR: str = ""           # 留空则使用默认 skills/ 目录（相对于 skill_md_loader.py 所在包）
+    SKILL_MD_HOT_RELOAD: bool = False  # 是否启用文件监听热重载（生产环境建议保持 False）
+
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"

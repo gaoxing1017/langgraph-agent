@@ -13,7 +13,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
 import structlog
@@ -22,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from agent_framework.agents.logistics.agent import LogisticsOrchestratorAgent
 from agent_framework.agents.logistics.skill_defaults import build_default_skill_registry
+from agent_framework.agents.logistics.skill_md_loader import SkillMDLoader
 from agent_framework.api.middleware import LoggingMiddleware, RequestIDMiddleware
 from agent_framework.api.routes import admin, health, runs, threads
 from agent_framework.api.routes import a2a as a2a_routes
@@ -60,16 +63,43 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     graph = build_react_graph().compile(checkpointer=checkpointer, store=store)
     app.state.graph = graph
 
-    # 物流协调器 Agent（注入内置 Skill 注册表）
-    skill_registry = build_default_skill_registry()
+    # 物流协调器 Agent（Python skills + md skills）
+    skill_registry = build_default_skill_registry(settings)
+    skill_md_loader = SkillMDLoader()
+    skill_md_dir = (
+        Path(settings.SKILL_MD_DIR)
+        if settings.SKILL_MD_DIR
+        else Path(__file__).parent.parent / "agents/logistics/skills"
+    )
+    md_count = skill_md_loader.load_directory(skill_md_dir, skill_registry, settings)
+    if md_count:
+        logger.info("skill_md_loaded_on_startup", count=md_count, directory=str(skill_md_dir))
+
     logistics_agent = LogisticsOrchestratorAgent(settings, skill_registry=skill_registry)
     logistics_agent.build_graph(checkpointer=checkpointer, store=store)
     app.state.logistics_agent = logistics_agent
+    app.state.skill_registry = skill_registry
+
+    # 热重载（可选，需 watchfiles 且 SKILL_MD_HOT_RELOAD=true）
+    skill_watcher_task: asyncio.Task | None = None
+    if settings.SKILL_MD_HOT_RELOAD:
+        skill_watcher_task = asyncio.create_task(
+            skill_md_loader.watch_directory(skill_md_dir, skill_registry, settings),
+            name="skill_md_watcher",
+        )
+        logger.info("skill_md_watcher_started", directory=str(skill_md_dir))
 
     logger.info("应用启动完成", environment=settings.ENVIRONMENT)
     yield
 
-    # 优雅关闭
+    # 优雅关闭：先取消 watcher
+    if skill_watcher_task and not skill_watcher_task.done():
+        skill_watcher_task.cancel()
+        try:
+            await skill_watcher_task
+        except asyncio.CancelledError:
+            pass
+
     await nacos.deregister()
     if hasattr(checkpointer, "aclose"):
         await checkpointer.aclose()
