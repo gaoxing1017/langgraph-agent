@@ -13,7 +13,7 @@ class RunRequest(BaseModel):
     thread_id: str = Field(default="", description="Conversation thread ID. Auto-generated if empty.")
     messages: list[MessageInput]
     stream: bool = False
-    agent_type: Literal["react", "plan_execute", "supervisor"] = "react"
+    agent_type: Literal["react", "plan_execute", "supervisor", "logistics"] = "react"
     user_id: str = "anonymous"
     tenant_id: str = "default"
     llm_provider: str | None = None
@@ -21,6 +21,7 @@ class RunRequest(BaseModel):
     tools_enabled: list[str] = Field(default_factory=list)
     memory_enabled: bool = True
     metadata: dict[str, Any] = Field(default_factory=dict)
+    resume: str | None = Field(default=None, description="Resume value for interrupted graph (HITL)")
 
 
 class CreateThreadRequest(BaseModel):

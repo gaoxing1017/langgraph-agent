@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Framework</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="logo">⬡ Agent Framework</span>
+        <div id="health-dot" class="health-dot" title="检查服务状态"></div>
+      </div>
+
+      <button class="btn-new" id="btn-new-thread">+ 新建对话</button>
+
+      <div class="thread-list-label">历史对话</div>
+      <ul class="thread-list" id="thread-list"></ul>
+
+      <div class="sidebar-footer">
+        <div class="setting-row">
+          <label>模型</label>
+          <select id="llm-provider">
+            <option value="openai">OpenAI GPT-4o</option>
+            <option value="anthropic">Anthropic Claude</option>
+            <option value="deepseek">DeepSeek</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>工具</label>
+          <label class="toggle">
+            <input type="checkbox" id="tools-enabled" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <label>记忆</label>
+          <label class="toggle">
+            <input type="checkbox" id="memory-enabled" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <label>流式</label>
+          <label class="toggle">
+            <input type="checkbox" id="stream-enabled" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="api-url-row">
+          <label>API 地址</label>
+          <input type="text" id="api-base" value="http://localhost:8000" />
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main chat area -->
+    <main class="chat-area">
+      <div class="chat-header">
+        <span id="thread-title">新建对话</span>
+        <button class="btn-icon" id="btn-delete-thread" title="删除当前对话">🗑</button>
+      </div>
+
+      <div class="messages" id="messages">
+        <div class="welcome">
+          <h2>你好，我是 Agent</h2>
+          <p>基于 LangGraph ReAct 框架，支持工具调用与多步推理。</p>
+          <div class="quick-prompts">
+            <button class="chip" data-prompt="你能做什么？">你能做什么？</button>
+            <button class="chip" data-prompt="帮我查询天气">帮我查询天气</button>
+            <button class="chip" data-prompt="解释一下 ReAct 框架">解释 ReAct 框架</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-bar">
+        <textarea
+          id="user-input"
+          placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
+          rows="1"
+        ></textarea>
+        <button class="btn-send" id="btn-send">发送</button>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

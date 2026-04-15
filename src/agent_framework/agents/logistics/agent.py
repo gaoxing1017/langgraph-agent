@@ -13,11 +13,13 @@ from typing import Any
 import structlog
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.types import Command
 
 from agent_framework.agents.base_agent import BaseAgent
 from agent_framework.config.settings import Settings
 from agent_framework.agents.logistics.dify_registry import build_dify_registry
 from agent_framework.agents.logistics.graph import LogisticsOrchestratorGraphBuilder
+from agent_framework.agents.logistics.skill_registry import SkillRegistry
 
 logger = structlog.get_logger(__name__)
 
@@ -35,9 +37,10 @@ class LogisticsOrchestratorAgent(BaseAgent):
         )
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, skill_registry: SkillRegistry | None = None) -> None:
         super().__init__(settings)
         self._dify_registry = build_dify_registry(settings)
+        self._skill_registry = skill_registry
 
     def build_graph(self, checkpointer: Any = None, store: Any = None, **kwargs: Any) -> None:
         """编译协调器图，存入 self._graph。"""
@@ -48,16 +51,15 @@ class LogisticsOrchestratorAgent(BaseAgent):
             mock_mode=self._settings.DIFY_MOCK_MODE,
         )
 
-    async def run(
+    def _build_config(
         self,
-        user_message: str,
-        thread_id: str = "default",
-        user_id: str = "anonymous",
-        tenant_id: str = "default",
+        thread_id: str,
+        user_id: str,
+        tenant_id: str,
         memory_enabled: bool = True,
-    ) -> dict[str, Any]:
-        """执行协调流程，返回 final_answer 与完整 messages。"""
-        config: RunnableConfig = {
+    ) -> RunnableConfig:
+        """构建图调用所需的 RunnableConfig，避免 run/stream 重复代码。"""
+        cfg: dict = {
             "configurable": {
                 "thread_id": thread_id,
                 "settings": self._settings,
@@ -69,24 +71,59 @@ class LogisticsOrchestratorAgent(BaseAgent):
                 },
             }
         }
-        input_state = {
-            "messages": [HumanMessage(content=user_message)],
-            "thread_id": thread_id,
-        }
+        if self._skill_registry:
+            cfg["configurable"]["skill_registry"] = self._skill_registry
+        return cfg
 
-        logger.info(
-            "orchestrator_run_start",
-            thread_id=thread_id,
-            user_id=user_id,
-            message_preview=user_message[:80],
-        )
+    async def run(
+        self,
+        user_message: str,
+        thread_id: str = "default",
+        user_id: str = "anonymous",
+        tenant_id: str = "default",
+        memory_enabled: bool = True,
+        resume: str | None = None,
+    ) -> dict[str, Any]:
+        """执行协调流程，返回 final_answer 与完整 messages。
+
+        当 resume 不为 None 时，以 Command(resume=...) 恢复被 interrupt() 挂起的图。
+        若结果中包含待处理的中断，在返回字典中附加 __interrupt__ 键。
+        """
+        config = self._build_config(thread_id, user_id, tenant_id, memory_enabled)
+
+        if resume is not None:
+            input_state: Any = Command(resume=resume)
+            logger.info(
+                "orchestrator_run_resume",
+                thread_id=thread_id,
+                user_id=user_id,
+                resume_preview=str(resume)[:80],
+            )
+        else:
+            input_state = {
+                "messages": [HumanMessage(content=user_message)],
+                "thread_id": thread_id,
+            }
+            logger.info(
+                "orchestrator_run_start",
+                thread_id=thread_id,
+                user_id=user_id,
+                message_preview=user_message[:80],
+            )
 
         result = await self._graph.ainvoke(input_state, config=config)
+
+        # 检查是否存在待处理的中断（validate_tasks 触发的 interrupt()）
+        graph_state = await self._graph.aget_state(config)
+        if graph_state.next and any(t.interrupts for t in graph_state.tasks):
+            interrupts = [i for t in graph_state.tasks for i in t.interrupts]
+            result["__interrupt__"] = interrupts[0].value
 
         logger.info(
             "orchestrator_run_done",
             thread_id=thread_id,
             has_answer=bool(result.get("final_answer")),
+            interrupted=("__interrupt__" in result),
             error_count=len(result.get("errors", [])),
         )
         return result
@@ -97,23 +134,28 @@ class LogisticsOrchestratorAgent(BaseAgent):
         thread_id: str = "default",
         user_id: str = "anonymous",
         tenant_id: str = "default",
+        resume: str | None = None,
     ):
-        """流式执行，yield LangGraph event 供 SSE 使用。"""
-        config: RunnableConfig = {
-            "configurable": {
+        """流式执行，yield LangGraph event 供 SSE 使用。
+
+        当 resume 不为 None 时，以 Command(resume=...) 恢复被 interrupt() 挂起的图。
+        若流结束后仍存在中断，额外 yield 一个 {"event": "__interrupt__", ...} 事件。
+        """
+        config = self._build_config(thread_id, user_id, tenant_id)
+
+        if resume is not None:
+            input_state: Any = Command(resume=resume)
+        else:
+            input_state = {
+                "messages": [HumanMessage(content=user_message)],
                 "thread_id": thread_id,
-                "settings": self._settings,
-                "dify_registry": self._dify_registry,
-                "context": {
-                    "user_id": user_id,
-                    "tenant_id": tenant_id,
-                    "memory_enabled": True,
-                },
             }
-        }
-        input_state = {
-            "messages": [HumanMessage(content=user_message)],
-            "thread_id": thread_id,
-        }
+
         async for event in self._graph.astream_events(input_state, config=config, version="v2"):
             yield event
+
+        # 流结束后检查是否存在待处理的中断
+        graph_state = await self._graph.aget_state(config)
+        if graph_state.next and any(t.interrupts for t in graph_state.tasks):
+            interrupts = [i for t in graph_state.tasks for i in t.interrupts]
+            yield {"event": "__interrupt__", "data": {"value": interrupts[0].value}}

@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from agent_framework.config.llm_config import get_llm
 from agent_framework.config.settings import Settings, get_settings
 from agent_framework.core.context import AgentContext
+from agent_framework.agents.logistics.skill_registry import SkillRegistry
 from agent_framework.agents.logistics.state import (
     LogisticsAgentType,
     OrchestratorState,
@@ -30,21 +31,27 @@ from agent_framework.agents.logistics.state import (
 
 logger = structlog.get_logger(__name__)
 
-ANALYZE_AND_PLAN_SYSTEM_PROMPT = """你是一个企业级物流供应链智能协调器。
+ANALYZE_AND_PLAN_SYSTEM_PROMPT = """你是一个企业级供应链智能协调器。
 
 你的任务：
 1. 结合历史操作记录理解用户的当前请求（用户可能引用了上一轮的结果）
 2. 将请求拆解为需要调用的子任务序列
 
 可用的子 Agent 类型及职责：
-- order_agent      : 订单查询、创建、修改、取消、状态变更
-- inventory_agent  : 库存查询、预留、调拨、盘点
-- transport_agent  : 承运商选择、路线规划、运单预订、运力调度
-- warehouse_agent  : 入库、出库、拣货、上架、库位管理
-- supplier_agent   : 供应商查询、询价、采购单、绩效查看
-- customs_agent    : 报关单生成、HS 编码查询、合规检查、清关状态
-- tracking_agent   : 货物实时追踪、异常预警、ETA 查询
-- analytics_agent  : 供应链 KPI 分析、预测、优化建议
+- place_order_agent      : 创建新订单，包含商品明细、数量、收货信息、支付方式、交货日期等
+- review_order_agent     : 审核订单，校验客户信用、库存可用性、价格合规、地址白名单等
+- exception_order_agent  : 处理异常订单，包括货损索赔、补发、异常标记解除、责任认定等
+- skill_agent            : 执行已注册的自定义 Skill（skill_name 字段指定具体 Skill 名称，见下方【已注册 Skill】）
+
+路由规则：
+- 用户明确要"下单"、"创建订单"、"新建订单" → place_order_agent
+- 用户要"审核"、"审批"、"核单" → review_order_agent
+- 用户提到"异常"、"破损"、"丢件"、"延误"、"投诉"、"补发" → exception_order_agent
+- 用户要查订单"状态"、"进度"、"物流"、"追踪" → skill_agent（skill_name="query_order_status"）
+- 用户要查"客户"、"买家"、"信用"、"授信"、"联系方式" → skill_agent（skill_name="query_customer_info"）
+- 用户要查"商品"、"SKU"、"产品"、"规格"、"价格" → skill_agent（skill_name="query_product_info"）
+- 下单前如需确认商品价格可先用 skill_agent（query_product_info），再调用 place_order_agent，请根据业务逻辑判断是否需要多步骤任务
+- 订单审核前如需确认商品价格、客户信息可先用 skill_agent（query_product_info、query_customer_info），再调用 review_order_agent，请根据业务逻辑判断是否需要多步骤任务
 
 规则：
 - 按实际需要选择最少的 agent 类型
@@ -69,6 +76,7 @@ def _format_task_history(history: list[TurnRecord]) -> str:
 class SubTaskSpec(BaseModel):
     agent_type: LogisticsAgentType
     instruction: str
+    skill_name: str | None = None   # agent_type == "skill_agent" 时必填
 
 
 class TaskPlan(BaseModel):
@@ -86,6 +94,7 @@ async def analyze_and_plan_node(
     configurable = config.get("configurable", {})
     settings: Settings = configurable.get("settings") or get_settings()
     context: AgentContext = configurable.get("context", {})
+    skill_registry: SkillRegistry | None = configurable.get("skill_registry")
 
     current_turn = state.get("turn_count", 1)
     task_history = [_to_turn_record(t) for t in state.get("task_history", [])]
@@ -109,6 +118,10 @@ async def analyze_and_plan_node(
     if prefs := state.get("user_preferences"):
         system_content += f"\n\n【用户偏好】{prefs}"
 
+    if skill_registry and not skill_registry.is_empty():
+        system_content += f"\n\n【已注册 Skill】\n{skill_registry.prompt_description()}"
+        system_content += "\n\n使用 skill_agent 时，必须在 skill_name 字段填写具体的 Skill 名称（如 calc_shipping_cost）。"
+
     llm = get_llm(
         settings,
         provider=context.get("llm_provider"),
@@ -128,6 +141,7 @@ async def analyze_and_plan_node(
             task_id=str(uuid.uuid4())[:8],
             turn=current_turn,
             agent_type=spec.agent_type,
+            skill_name=spec.skill_name,
             instruction=spec.instruction,
             status=TaskStatus.PENDING,
         )

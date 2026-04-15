@@ -11,22 +11,23 @@ from __future__ import annotations
 
 import operator
 from enum import Enum
-from typing import Annotated, Any
+from typing import Annotated, Any, TypedDict
 
+from langchain_core.messages import AnyMessage
+from langgraph.graph.message import add_messages
 from pydantic import BaseModel
 
 from agent_framework.core.state import AgentState
 
 
 class LogisticsAgentType(str, Enum):
-    ORDER = "order_agent"
-    INVENTORY = "inventory_agent"
-    TRANSPORT = "transport_agent"
-    WAREHOUSE = "warehouse_agent"
-    SUPPLIER = "supplier_agent"
-    CUSTOMS = "customs_agent"
-    TRACKING = "tracking_agent"
-    ANALYTICS = "analytics_agent"
+    PLACE_ORDER      = "place_order_agent"       # 下单 Agent
+    REVIEW_ORDER     = "review_order_agent"      # 审单 Agent
+    EXCEPTION_ORDER  = "exception_order_agent"   # 异常单处理 Agent
+    ORDER_QUERY      = "order_query_agent"       # 订单信息查询 Agent
+    CUSTOMER_QUERY   = "customer_query_agent"    # 客户信息查询 Agent
+    PRODUCT_QUERY    = "product_query_agent"     # 商品信息查询 Agent
+    SKILL            = "skill_agent"             # 通用 Skill 节点
 
 
 class TaskStatus(str, Enum):
@@ -40,6 +41,7 @@ class SubTask(BaseModel):
     task_id: str
     turn: int = 0                    # 所属轮次，用于多轮隔离
     agent_type: LogisticsAgentType
+    skill_name: str | None = None    # agent_type == SKILL 时指定具体 skill
     instruction: str
     status: TaskStatus = TaskStatus.PENDING
     result: str | None = None
@@ -119,3 +121,17 @@ class OrchestratorState(AgentState):
     # 编排控制
     orchestrator_iteration: int
     escalation_reason: str | None
+
+
+# ── output schema ──────────────────────────────────────────────────────────────
+
+class LogisticsOutputState(TypedDict, total=False):
+    """ainvoke / 前端可见的输出字段子集。"""
+    messages: Annotated[list[AnyMessage], add_messages]
+    final_answer: str | None
+    errors: Annotated[list[str], operator.add]
+    sub_tasks: Annotated[list[SubTask], _merge_sub_tasks]
+    turn_count: int
+    intent: str | None
+    active_orders: list[str]
+    active_shipments: list[str]

@@ -86,31 +86,31 @@ class Settings(BaseSettings):
     # 安全配置
     SECRET_KEY: str = "change-me-in-production"
 
-    # Dify 集成配置（物流子 Agent）
+    # Dify 集成配置（供应链子 Agent）
     # DIFY_MOCK_MODE=True 时使用内置 mock 响应，无需真实 Dify 服务
     DIFY_MOCK_MODE: bool = True
-    DIFY_ORDER_AGENT_URL: str = "http://localhost/v1"
-    DIFY_ORDER_AGENT_KEY: SecretStr = SecretStr("")
-    DIFY_TRACKING_AGENT_URL: str = "http://localhost/v1"
-    DIFY_TRACKING_AGENT_KEY: SecretStr = SecretStr("")
-    DIFY_INVENTORY_AGENT_URL: str = "http://localhost/v1"
-    DIFY_INVENTORY_AGENT_KEY: SecretStr = SecretStr("")
-    DIFY_TRANSPORT_AGENT_URL: str = "http://localhost/v1"
-    DIFY_TRANSPORT_AGENT_KEY: SecretStr = SecretStr("")
-    DIFY_WAREHOUSE_AGENT_URL: str = "http://localhost/v1"
-    DIFY_WAREHOUSE_AGENT_KEY: SecretStr = SecretStr("")
-    DIFY_SUPPLIER_AGENT_URL: str = "http://localhost/v1"
-    DIFY_SUPPLIER_AGENT_KEY: SecretStr = SecretStr("")
-    DIFY_CUSTOMS_AGENT_URL: str = "http://localhost/v1"
-    DIFY_CUSTOMS_AGENT_KEY: SecretStr = SecretStr("")
-    DIFY_ANALYTICS_AGENT_URL: str = "http://localhost/v1"
-    DIFY_ANALYTICS_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_PLACE_ORDER_AGENT_URL: str = "http://localhost/v1"
+    DIFY_PLACE_ORDER_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_REVIEW_ORDER_AGENT_URL: str = "http://localhost/v1"
+    DIFY_REVIEW_ORDER_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_EXCEPTION_ORDER_AGENT_URL: str = "http://localhost/v1"
+    DIFY_EXCEPTION_ORDER_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_ORDER_QUERY_AGENT_URL: str = "http://localhost/v1"
+    DIFY_ORDER_QUERY_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_CUSTOMER_QUERY_AGENT_URL: str = "http://localhost/v1"
+    DIFY_CUSTOMER_QUERY_AGENT_KEY: SecretStr = SecretStr("")
+    DIFY_PRODUCT_QUERY_AGENT_URL: str = "http://localhost/v1"
+    DIFY_PRODUCT_QUERY_AGENT_KEY: SecretStr = SecretStr("")
 
     # 协调器配置
     ORCHESTRATOR_MAX_ITERATIONS: int = 10
     ORCHESTRATOR_TASK_TIMEOUT: int = 60        # 单个 Dify 任务超时（秒）
     ORCHESTRATOR_KEEP_LAST_MESSAGES: int = 20  # 消息裁剪保留数（约 10 轮）
     ORCHESTRATOR_TASK_HISTORY_SIZE: int = 20   # task_history 最大保留轮数
+
+    # Skill MD 动态加载
+    SKILL_MD_DIR: str = ""           # 留空则使用默认 skills/ 目录（相对于 skill_md_loader.py 所在包）
+    SKILL_MD_HOT_RELOAD: bool = False  # 是否启用文件监听热重载（生产环境建议保持 False）
 
     @property
     def is_production(self) -> bool:

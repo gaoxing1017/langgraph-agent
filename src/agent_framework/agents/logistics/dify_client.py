@@ -4,61 +4,65 @@ from __future__ import annotations
 
 封装对 Dify Workflow Run API 的 HTTP 调用。
 DIFY_MOCK_MODE=True 时返回预设的 mock 响应，用于开发/测试阶段。
+
+当前支持的 Agent 类型（查询类已迁移为 Skill）：
+  - place_order_agent      : 下单 Agent
+  - review_order_agent     : 审单 Agent
+  - exception_order_agent  : 异常单处理 Agent
 """
 
+import re
+
 import structlog
+from agent_framework.agents.logistics.base_client import SubAgentClient
 from agent_framework.agents.logistics.state import LogisticsAgentType
 
 logger = structlog.get_logger(__name__)
 
-# Mock 响应库：Key 为 agent_type，Value 为响应模板
-_MOCK_RESPONSES: dict[LogisticsAgentType, str] = {
-    LogisticsAgentType.ORDER: (
-        "【订单Agent响应】查询完成。\n"
-        "订单信息：状态=已发货，创建时间=2024-01-10，"
-        "收货地址=上海市浦东新区张江高科，预计到货=2024-01-13。"
-    ),
-    LogisticsAgentType.TRACKING: (
-        "【追踪Agent响应】追踪完成。\n"
-        "最新位置：上海转运中心（2024-01-11 14:30），"
-        "当前状态=运输中，预计送达=2024-01-13 10:00，承运商=顺丰速运，运单号=SF1234567890。"
-    ),
-    LogisticsAgentType.INVENTORY: (
-        "【库存Agent响应】库存查询完成。\n"
-        "SKU-001 可用库存=500件，上海仓=300件，北京仓=200件，"
-        "安全库存=100件，状态=充足。"
-    ),
-    LogisticsAgentType.TRANSPORT: (
-        "【运输Agent响应】调度完成。\n"
-        "已匹配承运商：顺丰速运（评分4.8），预计时效=次日达，"
-        "报价=28.5元/单，运力充足，已创建调度单 TMS-20240111-001。"
-    ),
-    LogisticsAgentType.WAREHOUSE: (
-        "【仓储Agent响应】操作完成。\n"
-        "入库单 WH-2024-001 已创建，分配库位=A区-03-02，"
-        "预计入库时间=2024-01-12 09:00，操作员=系统自动分配。"
-    ),
-    LogisticsAgentType.SUPPLIER: (
-        "【供应商Agent响应】供应商信息查询完成。\n"
-        "供应商A：交货期=7天，最近30天准时率=96.5%，待处理PO=3笔，"
-        "建议：优先级正常，无异常预警。"
-    ),
-    LogisticsAgentType.CUSTOMS: (
-        "【清关Agent响应】合规检查完成。\n"
-        "HS编码=8471.30，关税税率=0%（自贸区协议），"
-        "所需文件：商业发票✓ 装箱单✓ 原产地证书⚠待上传，"
-        "预计清关时间=1-2个工作日。"
-    ),
-    LogisticsAgentType.ANALYTICS: (
-        "【分析Agent响应】分析完成。\n"
-        "本月供应链KPI：准时交付率=94.2%（目标95%，略低），"
-        "库存周转率=8.3次/年，平均运输时效=1.8天，"
-        "异常预警：华东区承运商延误率上升3.2%，建议增加备用运力。"
-    ),
-}
+# ── Mock 信息提取工具 ──────────────────────────────────────────────────────────
+
+def _extract_sku(text: str) -> str:
+    """从指令中提取第一个 SKU 编码。"""
+    m = re.search(r'(SKU[-\s]?\w+)', text, re.IGNORECASE)
+    return m.group(1).upper().replace(" ", "-") if m else "SKU-UNKNOWN"
 
 
-class DifyClient:
+def _extract_qty(text: str) -> tuple[str, str]:
+    """提取数量和单位。优先带单位的数字，其次补充信息中的裸数字。"""
+    m = re.search(r'(\d+)\s*(台|件|个|箱|套|批|pcs)', text, re.IGNORECASE)
+    if m:
+        return m.group(1), m.group(2)
+    supp = re.search(r'补充信息[^0-9]*(\d+)', text)
+    if supp:
+        return supp.group(1), "台"
+    return "1", "台"
+
+
+def _extract_receiver(text: str) -> str:
+    """提取收货方名称。"""
+    m = re.search(
+        r'收货(?:方|人|信息|单位|公司)?[：:\s]*([^\n，,。【]{2,20})',
+        text,
+    )
+    if m:
+        return m.group(1).strip()
+    m = re.search(r'客户[：:\s]*([^\n，,。【]{2,20})', text)
+    return m.group(1).strip() if m else "客户公司"
+
+
+def _extract_order_no(text: str) -> str:
+    """提取订单号。"""
+    m = re.search(r'((?:SO|PO|ORD)[- _]?[A-Z0-9\-]{3,20})', text, re.IGNORECASE)
+    return m.group(1).upper() if m else "SO-UNKNOWN"
+
+
+def _gen_order_no(seed: str) -> str:
+    """根据指令内容生成确定性订单号（同一指令每次相同）。"""
+    h = abs(hash(seed[:60])) % 90000 + 10000
+    return f"SO-2024-{h}"
+
+
+class DifyClient(SubAgentClient):
     """调用 Dify Workflow Run API 的异步客户端。
 
     Args:
@@ -126,6 +130,70 @@ class DifyClient:
             raise
 
     def _mock(self, instruction: str) -> str:
-        base = _MOCK_RESPONSES.get(self.agent_type, f"[Mock] {self.agent_type} 已处理指令")
         logger.debug("dify_mock_response", agent_type=self.agent_type, instruction=instruction[:80])
-        return base
+        handlers = {
+            LogisticsAgentType.PLACE_ORDER:     self._mock_place_order,
+            LogisticsAgentType.REVIEW_ORDER:    self._mock_review_order,
+            LogisticsAgentType.EXCEPTION_ORDER: self._mock_exception_order,
+        }
+        handler = handlers.get(self.agent_type)
+        return handler(instruction) if handler else f"[Mock] {self.agent_type} 已处理：{instruction[:60]}"
+
+    # ── 各 Agent mock 实现 ──────────────────────────────────────────────────────
+
+    def _mock_place_order(self, instruction: str) -> str:
+        sku      = _extract_sku(instruction)
+        qty, unit = _extract_qty(instruction)
+        receiver = _extract_receiver(instruction)
+        order_no = _gen_order_no(instruction)
+        unit_price = 6800
+        total = int(qty) * unit_price
+        return (
+            f"【下单Agent】创建订单成功。\n"
+            f"订单号：{order_no}\n"
+            f"收货方：{receiver}\n"
+            f"商品明细：\n"
+            f"  · {sku} × {qty}{unit}，单价 ¥{unit_price:,}，小计 ¥{total:,}\n"
+            f"订单金额：¥{total:,}\n"
+            f"支付方式：月结\n"
+            f"期望交货日期：2024-02-10\n"
+            f"订单状态：待审核"
+        )
+
+    def _mock_review_order(self, instruction: str) -> str:
+        order_no  = _extract_order_no(instruction)
+        sku       = _extract_sku(instruction)
+        qty, unit = _extract_qty(instruction)
+        # SKU 可能来自 inject_predecessor_context 注入；若未注入则用通用描述
+        sku_text  = sku if sku != "SKU-UNKNOWN" else "所需商品"
+        stock     = int(qty) + 80
+        return (
+            f"【审单Agent】审核完成。\n"
+            f"订单号：{order_no}\n"
+            f"审核结论：通过\n"
+            f"审核项目：\n"
+            f"  ✅ 客户信用等级：A级，历史无欠款\n"
+            f"  ✅ 库存核查：{sku_text} 可用库存 {stock}{unit}（需 {qty}{unit}），库存充足\n"
+            f"  ✅ 价格核查：报价符合合同价格表\n"
+            f"  ✅ 收货地址：已在白名单内，无合规风险\n"
+            f"  ✅ 付款条件：月结符合授信额度\n"
+            f"审核人：系统自动审核\n"
+            f"审核时间：2024-01-20 14:32:05"
+        )
+
+    def _mock_exception_order(self, instruction: str) -> str:
+        order_no  = _extract_order_no(instruction)
+        exc_match = re.search(r'(破损|丢件|延误|短货|质量|异常|货损|缺货)', instruction)
+        exc_type  = exc_match.group(1) if exc_match else "异常"
+        return (
+            f"【异常单处理Agent】处理完成。\n"
+            f"关联订单：{order_no}\n"
+            f"异常类型：{exc_type}\n"
+            f"处理结果：\n"
+            f"  1. 已拍照取证并上传理赔系统\n"
+            f"  2. 已向承运商发起索赔，预计赔付 5-7 个工作日\n"
+            f"  3. 已安排补发，新运单号：SF{abs(hash(order_no)) % 9000000000 + 1000000000}\n"
+            f"  4. 订单状态已更新为「补发处理中」\n"
+            f"责任方：承运商\n"
+            f"跟进人：物流客服-张敏（分机 8821）"
+        )

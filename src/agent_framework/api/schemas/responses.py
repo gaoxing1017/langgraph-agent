@@ -10,6 +10,15 @@ class MessageOutput(BaseModel):
     content: str
 
 
+class SubTaskOutput(BaseModel):
+    task_id: str
+    agent_type: str
+    instruction: str
+    status: str
+    result: str | None = None
+    error: str | None = None
+
+
 class RunResponse(BaseModel):
     run_id: str
     thread_id: str
@@ -17,6 +26,9 @@ class RunResponse(BaseModel):
     messages: list[MessageOutput] = []
     final_answer: str | None = None
     errors: list[str] = []
+    sub_tasks: list[SubTaskOutput] = []
+    turn_count: int = 0
+    intent: str | None = None
     metadata: dict[str, Any] = {}
 
 
